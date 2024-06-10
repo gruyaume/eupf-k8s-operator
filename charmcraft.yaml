@@ -1,0 +1,22 @@
+name: eupf-k8s
+type: charm
+title: eUPF K8s
+summary: eUPF K8s
+description: eUPF K8s
+bases:
+  - build-on:
+    - name: ubuntu
+      channel: "22.04"
+    run-on:
+    - name: ubuntu
+      channel: "22.04"
+
+containers:
+  eupf:
+    resource: eupf-image
+
+resources:
+  eupf-image:
+    type: oci-image
+    description: OCI image for eUPF
+    upstream-source: ghcr.io/gruyaume/eupf:0.6.4

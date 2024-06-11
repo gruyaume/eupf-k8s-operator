@@ -1,8 +1,93 @@
-# Copyright 2024 Guillaume Belanger
+# Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""
-THIS FILE WAS MODIFIED FROM THE ORIGNAL 
+"""Charm Library used to leverage the Multus Kubernetes CNI in charms.
+
+- On a BoundEvent (e.g. self.on.nad_config_changed which is originated from NadConfigChangedEvent),
+ it will:
+  - Configure the requested network attachment definitions
+  - Patch the statefulset with the necessary annotations for the container to have interfaces
+    that use those new network attachments.
+  - If an existing NAD config changed, it triggers pod restart to make the new config effective
+- On charm removal, it will:
+  - Delete the created network attachment definitions
+
+## Usage
+
+```python
+
+from charms.kubernetes_charm_libraries.v0.multus import (
+    KubernetesMultusCharmLib,
+    NetworkAttachmentDefinition,
+    NetworkAnnotation
+)
+
+class NadConfigChangedEvent(EventBase):
+
+
+class KubernetesMultusCharmEvents(CharmEvents):
+
+    nad_config_changed = EventSource(NadConfigChangedEvent)
+
+
+class YourCharm(CharmBase):
+
+    on = KubernetesMultusCharmEvents()
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._kubernetes_multus = KubernetesMultusCharmLib(
+            charm=self,
+            container_name=self._container_name,
+            cap_net_admin=True,
+            privileged=True,
+            network_annotations=[
+                NetworkAnnotation(
+                    name=NETWORK_ATTACHMENT_DEFINITION_NAME,
+                    interface=INTERFACE_NAME,
+                )
+            ],
+            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
+            refresh_event=self.on.nad_config_changed,
+        )
+
+    def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
+        return [
+            NetworkAttachmentDefinition(
+                metadata=ObjectMeta(name=NETWORK_ATTACHMENT_DEFINITION_NAME),
+                spec={
+                    "config": json.dumps(
+                        {
+                            "cniVersion": "0.3.1",
+                            "type": "macvlan",
+                            "ipam": {
+                                "type": "static",
+                                "routes": [
+                                    {
+                                        "dst": self._get_upf_ip_address_from_config(),
+                                        "gw": self._get_upf_gateway_from_config(),
+                                    }
+                                ],
+                                "addresses": [
+                                    {
+                                        "address": self._get_interface_ip_address_from_config(),
+                                    }
+                                ],
+                            },
+                        }
+                    )
+                },
+            ),
+        ]
+
+    def _on_config_changed(self, event: EventBase):
+        if not self.unit.is_leader():
+            return
+        if self._get_invalid_configs():
+            return
+        # Fire the NadConfigChangedEvent if the configs are valid.
+        self.on.nad_config_changed.emit()
+```
 """
 
 import json

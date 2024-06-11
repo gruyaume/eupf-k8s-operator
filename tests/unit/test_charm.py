@@ -56,7 +56,6 @@ class TestCharm:
 
         assert self.harness.model.unit.status == ActiveStatus("")
 
-
     def test_given_config_file_not_created_when_config_changed_then_file_created(self, add_storage):
         root = self.harness.get_filesystem_root(container=self._container_name)
         self.harness.set_can_connect(container=self._container_name, val=True)

@@ -20,6 +20,7 @@ PFCP_PORT = 8805
 PROMETHEUS_PORT = 9090
 INTERFACE_NAME = "lo"
 
+
 def render_upf_config_file(
     pfcp_address: str,
     n3_address: str,
@@ -103,7 +104,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             content=content
         ):
             self._write_upf_config_file(content=content)
-
 
 
 if __name__ == "__main__":  # pragma: nocover

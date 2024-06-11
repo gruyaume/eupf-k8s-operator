@@ -2,11 +2,12 @@
 # See LICENSE file for licensing details.
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
 from charm import EupfK8SOperatorCharm
-from ops import ActiveStatus, WaitingStatus, testing
+from ops import WaitingStatus, testing
 
 NAMESPACE = "whatever"
 
@@ -19,8 +20,18 @@ def read_file(path: str) -> str:
 
 class TestCharm:
 
+    patcher_k8s_eupf_service = patch("charm.PFCPService")
+    patcher_k8s_ebpf = patch("charm.EBPFVolume")
+    patcher_k8s_multus = patch("charm.KubernetesMultusCharmLib")
+
+    @pytest.fixture()
+    def setUp(self):
+        TestCharm.patcher_k8s_eupf_service.start()
+        TestCharm.patcher_k8s_ebpf.start()
+        TestCharm.patcher_k8s_multus.start()
+
     @pytest.fixture(autouse=True)
-    def harness_fixture(self,  request):
+    def harness_fixture(self,  setUp):
         self._container_name = "eupf"
         self.harness = testing.Harness(EupfK8SOperatorCharm)
         self.harness.set_model_name(name=NAMESPACE)
@@ -28,6 +39,10 @@ class TestCharm:
         self.harness.begin()
         yield self.harness
         self.harness.cleanup()
+
+    @staticmethod
+    def tearDown() -> None:
+        patch.stopall()
 
     @pytest.fixture()
     def add_storage(self):
@@ -48,13 +63,13 @@ class TestCharm:
 
         assert self.harness.model.unit.status == WaitingStatus("Waiting for UPF configuration file")
 
-    def test_given_config_file_created_when_evaluate_status_then_status_is_active(self, add_storage):
+    def test_given_eupf_service_not_running_when_evaluate_status_then_status_is_waiting(self, add_storage):
         self.harness.set_can_connect(container=self._container_name, val=True)
         self._push_configuration_file_to_workload()
 
         self.harness.evaluate_status()
 
-        assert self.harness.model.unit.status == ActiveStatus("")
+        assert self.harness.model.unit.status == WaitingStatus('Waiting for UPF service to start')
 
     def test_given_config_file_not_created_when_config_changed_then_file_created(self, add_storage):
         root = self.harness.get_filesystem_root(container=self._container_name)
@@ -65,3 +80,20 @@ class TestCharm:
         expected_config_file_content = read_file("tests/unit/expected_config.yaml").strip()
         existing_config = (root / "etc/eupf/config.yaml").read_text()
         assert yaml.safe_load(existing_config) == yaml.safe_load(expected_config_file_content)
+
+    def test_given_can_connect_when_config_changed_then_pebble_layer_is_added(self, add_storage):
+        self.harness.set_can_connect(container=self._container_name, val=True)
+
+        self.harness.update_config()
+
+        expected_plan = {
+            "services": {
+                self._container_name: {
+                    "startup": "enabled",
+                    "override": "replace",
+                    "command": "/bin/eupf --config /etc/eupf/config.yaml",
+                }
+            }
+        }
+        applied_plan = self.harness.get_container_pebble_plan(self._container_name).to_dict()
+        assert applied_plan == expected_plan

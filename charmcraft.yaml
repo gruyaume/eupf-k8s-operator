@@ -14,9 +14,33 @@ bases:
 containers:
   eupf:
     resource: eupf-image
+    mounts:
+      - storage: config
+        location: /etc/eupf
 
 resources:
   eupf-image:
     type: oci-image
     description: OCI image for eUPF
     upstream-source: ghcr.io/gruyaume/eupf:0.6.4
+
+storage:
+  config:
+    type: filesystem
+    minimum-size: 1M
+
+config:
+  options:
+    core-ip:
+      type: string
+      default: 192.168.250.3
+      description: IP address used by the UPF's Core interface.
+    access-ip:
+      type: string
+      default: 192.168.252.3
+      description: IP address used by the UPF's Access interface.
+    external-upf-hostname:
+      type: string
+      description: |
+        Externally accessible FQDN for the UPF.
+        If not provided, it will default to the machine hostname.

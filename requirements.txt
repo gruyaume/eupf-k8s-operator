@@ -4,9 +4,17 @@
 #
 #    pip-compile requirements.in
 #
+jinja2==3.1.4
+    # via -r requirements.in
+markupsafe==2.1.5
+    # via jinja2
 ops==2.14.0
+    # via -r requirements.in
+pydantic==1.10.15
     # via -r requirements.in
 pyyaml==6.0.1
     # via ops
+typing-extensions==4.12.2
+    # via pydantic
 websocket-client==1.8.0
     # via ops

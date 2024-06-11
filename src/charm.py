@@ -72,10 +72,8 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             logger.info("Not a leader, skipping configuration")
             return
         if not self._container.can_connect():
-            print(2)
             logger.info("Cannot connect to the container")
             return
-        print(4)
         self._generate_config_file()
 
     def _upf_config_file_is_written(self) -> bool:

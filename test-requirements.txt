@@ -42,7 +42,9 @@ idna==3.7
     #   -c requirements.txt
     #   requests
 iniconfig==2.0.0
-    # via pytest
+    # via
+    #   -c requirements.txt
+    #   pytest
 ipdb==0.13.13
     # via pytest-operator
 ipython==8.25.0
@@ -77,6 +79,7 @@ oauthlib==3.2.2
     #   requests-oauthlib
 packaging==24.1
     # via
+    #   -c requirements.txt
     #   juju
     #   pytest
 paramiko==3.4.0
@@ -86,7 +89,9 @@ parso==0.8.4
 pexpect==4.9.0
     # via ipython
 pluggy==1.5.0
-    # via pytest
+    # via
+    #   -c requirements.txt
+    #   pytest
 prompt-toolkit==3.0.47
     # via ipython
 protobuf==5.27.1
@@ -121,6 +126,7 @@ pyright==1.1.367
     # via -r test-requirements.in
 pytest==8.2.2
     # via
+    #   -c requirements.txt
     #   -r test-requirements.in
     #   pytest-asyncio
     #   pytest-operator

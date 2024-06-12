@@ -46,6 +46,8 @@ config:
         If not provided, it will default to the machine hostname.
 
 provides:
+  fiveg_n3:
+    interface: fiveg_n3
   fiveg_n4:
     interface: fiveg_n4
   metrics-endpoint:

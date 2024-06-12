@@ -10,6 +10,8 @@ certifi==2024.6.2
     # via
     #   httpcore
     #   httpx
+cosl==0.0.12
+    # via -r requirements.in
 h11==0.14.0
     # via httpcore
 httpcore==1.0.5
@@ -31,11 +33,14 @@ lightkube-models==1.30.0.8
 markupsafe==2.1.5
     # via jinja2
 ops==2.14.0
-    # via -r requirements.in
-pydantic==1.10.15
+    # via
+    #   -r requirements.in
+    #   cosl
+pydantic==1.10.16
     # via -r requirements.in
 pyyaml==6.0.1
     # via
+    #   cosl
     #   lightkube
     #   ops
 sniffio==1.3.1
@@ -43,6 +48,8 @@ sniffio==1.3.1
     #   anyio
     #   httpx
 typing-extensions==4.12.2
-    # via pydantic
+    # via
+    #   cosl
+    #   pydantic
 websocket-client==1.8.0
     # via ops

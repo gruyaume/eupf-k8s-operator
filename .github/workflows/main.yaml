@@ -36,6 +36,7 @@ jobs:
       - lint-report
       - static-analysis
       - unit-tests-with-coverage
+      - build
     if: ${{ github.ref_name == 'main' }}
     uses: ./.github/workflows/publish-charm.yaml
     secrets: inherit

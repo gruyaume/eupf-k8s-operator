@@ -37,7 +37,7 @@ config:
       description: IP address used by the UPF's Core interface.
     access-ip:
       type: string
-      default: 192.168.252.3
+      default: 192.168.250.3
       description: IP address used by the UPF's Access interface.
     external-upf-hostname:
       type: string

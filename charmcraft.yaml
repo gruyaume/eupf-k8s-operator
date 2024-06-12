@@ -45,6 +45,10 @@ config:
         Externally accessible FQDN for the UPF.
         If not provided, it will default to the machine hostname.
 
+requires:
+  logging:
+    interface: loki_push_api
+
 provides:
   fiveg_n3:
     interface: fiveg_n3

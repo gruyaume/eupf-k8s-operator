@@ -15,6 +15,7 @@ from charms.kubernetes_charm_libraries.v0.multus import (
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.prometheus_k8s.v0.prometheus_scrape import (
     MetricsEndpointProvider,
 )
@@ -38,6 +39,7 @@ PROMETHEUS_PORT = 9090
 NETWORK_ATTACHMENT_DEFINITION_NAME = "access-net"
 INTERFACE_BRIDGE_NAME = "access-br"
 INTERFACE_NAME = "access"
+LOGGING_RELATION_NAME = "logging"
 
 
 def render_upf_config_file(
@@ -84,6 +86,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         self.framework.observe(self.on.collect_unit_status, self._on_collect_status)
         self._container_name = self._service_name = "eupf"
         self._container = self.unit.get_container(self._container_name)
+        self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.unit.set_ports(PROMETHEUS_PORT)
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)

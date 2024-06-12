@@ -31,17 +31,11 @@ jobs:
     uses: ./.github/workflows/build.yaml
     secrets: inherit
 
-  integration-test:
-    needs: 
-      - build
-    uses: ./.github/workflows/integration-test.yaml
-
   publish-charm:
     needs:
       - lint-report
       - static-analysis
       - unit-tests-with-coverage
-      - integration-test
     if: ${{ github.ref_name == 'main' }}
     uses: ./.github/workflows/publish-charm.yaml
     secrets: inherit

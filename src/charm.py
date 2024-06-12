@@ -18,8 +18,9 @@ from charms.kubernetes_charm_libraries.v0.multus import (
 from charms.prometheus_k8s.v0.prometheus_scrape import (
     MetricsEndpointProvider,
 )
+from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from jinja2 import Environment, FileSystemLoader
-from kubernetes_eupf import EBPFVolume, PFCPService
+from kubernetes_eupf import EBPFVolume, PFCPService, get_upf_load_balancer_service_hostname
 from lightkube.models.meta_v1 import ObjectMeta
 from ops import RemoveEvent
 from ops.charm import CharmEvents, CollectStatusEvent
@@ -107,6 +108,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             app_name=self.model.app.name,
             unit_name=self.model.unit.name,
         )
+        self.fiveg_n4_provider = N4Provides(charm=self, relation_name="fiveg_n4")
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
             jobs=[
@@ -117,6 +119,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         )
         self.framework.observe(self.on.config_changed, self._configure)
         self.framework.observe(self.on.update_status, self._configure)
+        self.framework.observe(
+            self.fiveg_n4_provider.on.fiveg_n4_request, self._configure
+        )
         self.framework.observe(self.on.remove, self._on_remove)
 
     def _on_collect_status(self, event: CollectStatusEvent):
@@ -146,6 +151,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._ebpf_volume.create()
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
+        self._update_fiveg_n4_relation_data()
 
     def _on_remove(self, _: RemoveEvent) -> None:
         """Handle the removal of the charm.
@@ -204,6 +210,27 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._write_upf_config_file(content=content)
             return True
         return False
+
+    def _update_fiveg_n4_relation_data(self) -> None:
+        fiveg_n4_relations = self.model.relations.get("fiveg_n4")
+        if not fiveg_n4_relations:
+            logger.info("No `fiveg_n4` relations found.")
+            return
+        for fiveg_n4_relation in fiveg_n4_relations:
+            self.fiveg_n4_provider.publish_upf_n4_information(
+                relation_id=fiveg_n4_relation.id,
+                upf_hostname=self._get_n4_upf_hostname(),
+                upf_n4_port=PFCP_PORT,
+            )
+
+    def _get_n4_upf_hostname(self) -> str:
+        if lb_hostname := get_upf_load_balancer_service_hostname(namespace=self.model.name, app_name=self.model.app.name):
+            return lb_hostname
+        return self._upf_hostname
+
+    @property
+    def _upf_hostname(self) -> str:
+        return f"{self.model.app.name}-external.{self.model.name}.svc.cluster.local"
 
     def _configure_pebble(self, restart: bool) -> None:
         """Configure the Pebble layer.

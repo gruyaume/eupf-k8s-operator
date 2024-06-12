@@ -5,7 +5,7 @@
 
 
 import logging
-from typing import Iterable
+from typing import Iterable, Optional
 
 from httpx import HTTPStatusError
 from lightkube.core.client import Client
@@ -25,6 +25,22 @@ from lightkube.resources.core_v1 import Pod, Service
 
 logger = logging.getLogger(__name__)
 
+
+def get_upf_load_balancer_service_hostname(namespace: str, app_name: str) -> Optional[str]:
+    """Get the hostname of the UPF service."""
+    client = Client()  # type: ignore[reportArgumentType]
+    service = client.get(
+        Service, name=f"{app_name}-external", namespace=namespace
+    )
+    try:
+        return service.status.loadBalancer.ingress[0].hostname  # type: ignore[reportAttributeAccessIssue]
+    except (AttributeError, TypeError):
+        logger.error(
+            "Service '%s-external' does not have a hostname:\n%s",
+            app_name,
+            service,
+        )
+        return None
 
 class PFCPService:
     """PFCP service for the UPF."""

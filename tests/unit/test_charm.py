@@ -22,6 +22,7 @@ class TestCharm:
 
     patcher_k8s_eupf_service = patch("charm.PFCPService")
     patcher_k8s_ebpf = patch("charm.EBPFVolume")
+    patcher_k8s_get_upf_load_balancer_service_hostname = patch("charm.get_upf_load_balancer_service_hostname")
     patcher_k8s_multus = patch("charm.KubernetesMultusCharmLib")
 
     @pytest.fixture()
@@ -29,6 +30,7 @@ class TestCharm:
         TestCharm.patcher_k8s_eupf_service.start()
         TestCharm.patcher_k8s_ebpf.start()
         TestCharm.patcher_k8s_multus.start()
+        TestCharm.patcher_k8s_get_upf_load_balancer_service_hostname.start()
 
     @pytest.fixture(autouse=True)
     def harness_fixture(self,  setUp):

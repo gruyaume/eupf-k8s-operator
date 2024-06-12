@@ -44,3 +44,7 @@ config:
       description: |
         Externally accessible FQDN for the UPF.
         If not provided, it will default to the machine hostname.
+
+provides:
+  metrics-endpoint:
+    interface: prometheus_scrape

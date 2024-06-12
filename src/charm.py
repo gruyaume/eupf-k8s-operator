@@ -15,6 +15,9 @@ from charms.kubernetes_charm_libraries.v0.multus import (
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
+from charms.prometheus_k8s.v0.prometheus_scrape import (
+    MetricsEndpointProvider,
+)
 from jinja2 import Environment, FileSystemLoader
 from kubernetes_eupf import EBPFVolume, PFCPService
 from lightkube.models.meta_v1 import ObjectMeta
@@ -103,6 +106,14 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             container_name=self._container_name,
             app_name=self.model.app.name,
             unit_name=self.model.unit.name,
+        )
+        self._metrics_endpoint = MetricsEndpointProvider(
+            self,
+            jobs=[
+                {
+                    "static_configs": [{"targets": [f"*:{PROMETHEUS_PORT}"]}],
+                }
+            ],
         )
         self.framework.observe(self.on.config_changed, self._configure)
         self.framework.observe(self.on.update_status, self._configure)

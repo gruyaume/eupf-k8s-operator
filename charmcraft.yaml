@@ -31,14 +31,26 @@ storage:
 
 config:
   options:
+    gnb-subnet:
+      type: string
+      default: 192.168.251.0/24
+      description: gNodeB subnet.
     core-ip:
       type: string
       default: 192.168.250.3
       description: IP address used by the UPF's Core interface.
+    core-gateway-ip:
+      type: string
+      default: 192.168.250.1
+      description: Gateway IP address to the Core Network.
     access-ip:
       type: string
-      default: 192.168.250.3
+      default: 192.168.252.3
       description: IP address used by the UPF's Access interface.
+    access-gateway-ip:
+      type: string
+      default: 192.168.252.1
+      description: Gateway IP address to the Access Network.
     external-upf-hostname:
       type: string
       description: |

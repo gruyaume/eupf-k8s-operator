@@ -15,6 +15,7 @@ from pydantic import (
     ValidationError,
     validator,
 )
+from pydantic.networks import IPvAnyAddress, IPvAnyNetwork
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,11 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
         """Represent config for Pydantic model."""
         alias_generator = to_kebab
 
+    gnb_subnet: IPvAnyNetwork = IPvAnyNetwork("192.168.251.0/24")
     core_ip: str
+    core_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.250.1")
     access_ip: str
+    access_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.252.1")
     external_upf_hostname: Optional[StrictStr]
 
     @validator("core_ip", "access_ip")
@@ -59,9 +63,12 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
 class CharmConfig:
     """Represent the configuration of the charm."""
 
+    gnb_subnet: IPvAnyNetwork
     core_ip: StrictStr
+    core_gateway_ip: IPvAnyAddress
     access_ip: StrictStr
     external_upf_hostname: Optional[str]
+    access_gateway_ip: IPvAnyAddress
 
     def __init__(self, *, upf_config: UpfConfig):
         """Initialize a new instance of the CharmConfig class.
@@ -69,8 +76,11 @@ class CharmConfig:
         Args:
             upf_config: UPF operator configuration.
         """
+        self.gnb_subnet = upf_config.gnb_subnet
         self.core_ip = upf_config.core_ip
+        self.core_gateway_ip = upf_config.core_gateway_ip
         self.access_ip = upf_config.access_ip
+        self.access_gateway_ip = upf_config.access_gateway_ip
         self.external_upf_hostname = upf_config.external_upf_hostname
 
     @classmethod

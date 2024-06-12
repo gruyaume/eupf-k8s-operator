@@ -18,6 +18,7 @@ from charms.kubernetes_charm_libraries.v0.multus import (
 from charms.prometheus_k8s.v0.prometheus_scrape import (
     MetricsEndpointProvider,
 )
+from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from jinja2 import Environment, FileSystemLoader
 from kubernetes_eupf import EBPFVolume, PFCPService, get_upf_load_balancer_service_hostname
@@ -108,6 +109,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             app_name=self.model.app.name,
             unit_name=self.model.unit.name,
         )
+        self.fiveg_n3_provider = N3Provides(charm=self, relation_name="fiveg_n3")
         self.fiveg_n4_provider = N4Provides(charm=self, relation_name="fiveg_n4")
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
@@ -119,6 +121,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         )
         self.framework.observe(self.on.config_changed, self._configure)
         self.framework.observe(self.on.update_status, self._configure)
+        self.framework.observe(
+            self.fiveg_n3_provider.on.fiveg_n3_request, self._configure
+        )
         self.framework.observe(
             self.fiveg_n4_provider.on.fiveg_n4_request, self._configure
         )
@@ -151,6 +156,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._ebpf_volume.create()
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
+        self._update_fiveg_n3_relation_data()
         self._update_fiveg_n4_relation_data()
 
     def _on_remove(self, _: RemoveEvent) -> None:
@@ -210,6 +216,17 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._write_upf_config_file(content=content)
             return True
         return False
+
+    def _update_fiveg_n3_relation_data(self) -> None:
+        fiveg_n3_relations = self.model.relations.get("fiveg_n3")
+        if not fiveg_n3_relations:
+            logger.info("No `fiveg_n3` relations found.")
+            return
+        for fiveg_n3_relation in fiveg_n3_relations:
+            self.fiveg_n3_provider.publish_upf_information(
+                relation_id=fiveg_n3_relation.id,
+                upf_ip_address=self._charm_config.access_ip,
+            )
 
     def _update_fiveg_n4_relation_data(self) -> None:
         fiveg_n4_relations = self.model.relations.get("fiveg_n4")

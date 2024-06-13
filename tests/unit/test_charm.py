@@ -76,6 +76,11 @@ class TestCharm:
     def test_given_config_file_not_created_when_config_changed_then_file_created(self, add_storage):
         root = self.harness.get_filesystem_root(container=self._container_name)
         self.harness.set_can_connect(container=self._container_name, val=True)
+        self.harness.handle_exec(
+            container=self._container_name,
+            command_prefix=[],
+            result=0,
+        )
 
         self.harness.update_config()
 
@@ -85,6 +90,11 @@ class TestCharm:
 
     def test_given_can_connect_when_config_changed_then_pebble_layer_is_added(self, add_storage):
         self.harness.set_can_connect(container=self._container_name, val=True)
+        self.harness.handle_exec(
+            container=self._container_name,
+            command_prefix=[],
+            result=0,
+        )
 
         self.harness.update_config()
 

@@ -51,11 +51,6 @@ config:
       type: string
       default: 192.168.252.1
       description: Gateway IP address to the Access Network.
-    external-upf-hostname:
-      type: string
-      description: |
-        Externally accessible FQDN for the UPF.
-        If not provided, it will default to the machine hostname.
 
 requires:
   logging:

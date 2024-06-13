@@ -90,7 +90,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         self.unit.set_ports(PROMETHEUS_PORT)
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
-        except CharmConfigInvalidError:
+        except CharmConfigInvalidError as e:
+            print(0)
+            print(str(e))
             return
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
@@ -144,6 +146,11 @@ class EupfK8SOperatorCharm(ops.CharmBase):
 
     def _configure(self, event):
         """Handle state affecting events."""
+        print(1)
+        try:  # workaround for https://github.com/canonical/operator/issues/736
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+        except CharmConfigInvalidError:
+            return
         if not self.unit.is_leader():
             logger.info("Not a leader, skipping configuration")
             return
@@ -151,7 +158,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             logger.info("Cannot connect to the container")
             return
         if not self._kubernetes_multus.multus_is_available():
+            print(2)
             return
+        print(3)
         self.on.nad_config_changed.emit()
         if not self._pfcp_service.is_created():
             self._pfcp_service.create()

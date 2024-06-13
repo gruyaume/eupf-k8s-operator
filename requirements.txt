@@ -4,6 +4,8 @@
 #
 #    pip-compile requirements.in
 #
+annotated-types==0.7.0
+    # via pydantic
 anyio==4.4.0
     # via httpx
 certifi==2024.6.2
@@ -47,10 +49,12 @@ packaging==24.1
     # via pytest
 pluggy==1.5.0
     # via pytest
-pydantic==1.10.16
+pydantic==2.6.4
     # via
     #   -r requirements.in
     #   pytest-interface-tester
+pydantic-core==2.16.3
+    # via pydantic
 pytest==8.2.2
     # via pytest-interface-tester
 pytest-interface-tester==2.0.1
@@ -71,5 +75,6 @@ typing-extensions==4.12.2
     # via
     #   cosl
     #   pydantic
+    #   pydantic-core
 websocket-client==1.8.0
     # via ops

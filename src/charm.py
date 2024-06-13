@@ -35,6 +35,8 @@ CONFIG_FILE_NAME = "config.yaml"
 CONFIG_PATH = "/etc/eupf"
 PFCP_PORT = 8805
 PROMETHEUS_PORT = 9090
+N3_INTERFACE_BRIDGE_NAME = "n3-br"
+N4_INTERFACE_BRIDGE_NAME = "n4-br"
 N3_NETWORK_ATTACHMENT_DEFINITION_NAME = "n3"
 N4_NETWORK_ATTACHMENT_DEFINITION_NAME = "n4"
 N3_INTERFACE_NAME = "n3"
@@ -380,6 +382,8 @@ class EupfK8SOperatorCharm(ops.CharmBase):
                 ],
             },
             "capabilities": {"mac": True},
+            "type": "bridge",
+            "bridge": N3_INTERFACE_BRIDGE_NAME
         }
         n4_nad_config = {
             "cniVersion": "0.3.1",
@@ -390,6 +394,8 @@ class EupfK8SOperatorCharm(ops.CharmBase):
                 ],
             },
             "capabilities": {"mac": True},
+            "type": "bridge",
+            "bridge": N4_INTERFACE_BRIDGE_NAME
         }
 
         n3_nad = NetworkAttachmentDefinition(

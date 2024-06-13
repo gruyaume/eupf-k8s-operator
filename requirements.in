@@ -1,7 +1,8 @@
 ops
 jinja2
-pydantic<2
+pydantic==2.6.4
 lightkube
 lightkube-models
 cosl # Required by prometheus_k8s.v0.prometheus_scrape
 pytest-interface-tester
+PyYAML>=6.0.1

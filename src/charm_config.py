@@ -5,12 +5,12 @@
 
 import dataclasses
 import logging
-from ipaddress import ip_network
-from typing import Optional
+from ipaddress import IPv4Address, IPv4Network, ip_network
 
 import ops
 from pydantic import (
     BaseModel,
+    ConfigDict,
     StrictStr,
     ValidationError,
     validator,
@@ -36,16 +36,16 @@ def to_kebab(name: str) -> str:
     return name.replace("_", "-")
 
 
-class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
+class UpfConfig(BaseModel):
     """Represent UPF operator builtin configuration values."""
 
-    class Config:
-        """Represent config for Pydantic model."""
-        alias_generator = to_kebab
+    model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
 
+    gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
     core_ip: str
+    core_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     access_ip: str
-    external_upf_hostname: Optional[StrictStr]
+    access_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
 
     @validator("core_ip", "access_ip")
     @classmethod
@@ -59,9 +59,11 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
 class CharmConfig:
     """Represent the configuration of the charm."""
 
+    gnb_subnet: IPv4Network
     core_ip: StrictStr
+    core_gateway_ip: IPv4Address
     access_ip: StrictStr
-    external_upf_hostname: Optional[str]
+    access_gateway_ip: IPv4Address
 
     def __init__(self, *, upf_config: UpfConfig):
         """Initialize a new instance of the CharmConfig class.
@@ -69,9 +71,11 @@ class CharmConfig:
         Args:
             upf_config: UPF operator configuration.
         """
+        self.gnb_subnet = upf_config.gnb_subnet
         self.core_ip = upf_config.core_ip
+        self.core_gateway_ip = upf_config.core_gateway_ip
         self.access_ip = upf_config.access_ip
-        self.external_upf_hostname = upf_config.external_upf_hostname
+        self.access_gateway_ip = upf_config.access_gateway_ip
 
     @classmethod
     def from_charm(

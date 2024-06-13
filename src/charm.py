@@ -43,26 +43,32 @@ LOGGING_RELATION_NAME = "logging"
 
 
 def render_upf_config_file(
+    logging_level: str,
     pfcp_address: str,
     n3_address: str,
     interface_name: str,
     metrics_port: int,
+    pfcp_node_id: str,
 ) -> str:
     """Render the configuration file for the 5G UPF service.
 
     Args:
+        logging_level: The logging level.
         pfcp_address: The PFCP address.
         n3_address: The N3 address.
         interface_name: The interface name.
         metrics_port: The port for the metrics.
+        pfcp_node_id: The PFCP node ID.
     """
     jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
     template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
     content = template.render(
+        logging_level=logging_level,
         pfcp_address=pfcp_address,
         n3_address=n3_address,
         interface_name=interface_name,
         metrics_port=metrics_port,
+        pfcp_node_id=pfcp_node_id,
     )
     return content
 
@@ -266,10 +272,12 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             bool: Whether the configuration file was written.
         """
         content = render_upf_config_file(
+            logging_level=self._charm_config.logging_level,
             pfcp_address=f"{self._charm_config.core_ip}:{PFCP_PORT}",
             n3_address=self._charm_config.access_ip,
             interface_name=INTERFACE_NAME,
             metrics_port=PROMETHEUS_PORT,
+            pfcp_node_id=str(self._charm_config.pfcp_node_id),
         )
         if not self._upf_config_file_is_written() or not self._upf_config_file_content_matches(
             content=content

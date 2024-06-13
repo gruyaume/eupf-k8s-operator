@@ -61,10 +61,6 @@ config:
       type: string
       default: 192.168.252.1
       description: Gateway IP address to the Access Network.
-    pfcp-node-id:
-      type: string
-      default: 127.0.0.1
-      description: Local NodeID for PFCP protocol. Format is IPv4 address.
 
 requires:
   logging:

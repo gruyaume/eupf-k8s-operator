@@ -3,4 +3,4 @@ pfcp_address: 192.168.250.3:8805
 metrics_address: :9090
 n3_address: 192.168.252.3
 logging_level: info
-pfcp_node_id: 127.0.0.1
+pfcp_node_id: 192.168.250.3

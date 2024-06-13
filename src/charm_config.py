@@ -5,15 +5,13 @@
 
 import dataclasses
 import logging
-from ipaddress import IPv4Address, IPv4Network, ip_network
+from ipaddress import IPv4Address, IPv4Network
 
 import ops
 from pydantic import (
     BaseModel,
     ConfigDict,
-    StrictStr,
     ValidationError,
-    validator,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,28 +40,20 @@ class UpfConfig(BaseModel):
     model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
 
     gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
-    core_ip: str
-    core_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
-    access_ip: str
-    access_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
-
-    @validator("core_ip", "access_ip")
-    @classmethod
-    def validate_ip_network_address(cls, value: str) -> str:
-        """Validate that IP network address is valid."""
-        ip_network(value, strict=False)
-        return value
-
+    n3_ip: IPv4Address = IPv4Address("192.168.252.3")
+    n3_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
+    n4_ip: IPv4Address = IPv4Address("192.168.250.3")
+    n4_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
 
 @dataclasses.dataclass
 class CharmConfig:
     """Represent the configuration of the charm."""
 
     gnb_subnet: IPv4Network
-    core_ip: StrictStr
-    core_gateway_ip: IPv4Address
-    access_ip: StrictStr
-    access_gateway_ip: IPv4Address
+    n3_ip: IPv4Address
+    n3_gateway_ip: IPv4Address
+    n4_ip: IPv4Address
+    n4_gateway_ip: IPv4Address
 
     def __init__(self, *, upf_config: UpfConfig):
         """Initialize a new instance of the CharmConfig class.
@@ -72,10 +62,10 @@ class CharmConfig:
             upf_config: UPF operator configuration.
         """
         self.gnb_subnet = upf_config.gnb_subnet
-        self.core_ip = upf_config.core_ip
-        self.core_gateway_ip = upf_config.core_gateway_ip
-        self.access_ip = upf_config.access_ip
-        self.access_gateway_ip = upf_config.access_gateway_ip
+        self.n3_ip = upf_config.n3_ip
+        self.n3_gateway_ip = upf_config.n3_gateway_ip
+        self.n4_ip = upf_config.n4_ip
+        self.n4_gateway_ip = upf_config.n4_gateway_ip
 
     @classmethod
     def from_charm(

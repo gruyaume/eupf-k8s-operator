@@ -109,7 +109,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         )
         self._pfcp_service = PFCPService(
             namespace=self.model.name,
-            app_name=self._service_name,
+            app_name=self.model.app.name,
             pfcp_port=PFCP_PORT,
         )
         self._ebpf_volume = EBPFVolume(
@@ -207,6 +207,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         except ExecError as e:
             logger.error("Failed retrieving routes: %s", e.stderr)
             return False
+        except FileNotFoundError:
+            logger.error("Failed to execute command. File not found.")
+            return False
         for line in stdout.splitlines():
             if f"{dst} via {via}" in line:
                 return True
@@ -221,6 +224,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         except ExecError as e:
             logger.error("Failed to create core network route: %s", e.stderr)
             return
+        except FileNotFoundError:
+            logger.error("Failed to execute command. File not found.")
+            return
         logger.info("Default core network route created")
 
     def _create_ran_route(self) -> None:
@@ -231,6 +237,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             )
         except ExecError as e:
             logger.error("Failed to create route to gnb-subnet: %s", e.stderr)
+            return
+        except FileNotFoundError:
+            logger.error("Failed to execute command. File not found.")
             return
         logger.info("Route to gnb-subnet created")
 

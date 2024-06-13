@@ -41,11 +41,13 @@ class UpfConfig(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
 
+    logging_level: str = "info"
     gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
     core_ip: str
     core_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     access_ip: str
     access_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
+    pfcp_node_id: IPv4Address = IPv4Address("127.0.0.1")
 
     @validator("core_ip", "access_ip")
     @classmethod
@@ -59,11 +61,13 @@ class UpfConfig(BaseModel):
 class CharmConfig:
     """Represent the configuration of the charm."""
 
+    logging_level: str
     gnb_subnet: IPv4Network
     core_ip: StrictStr
     core_gateway_ip: IPv4Address
     access_ip: StrictStr
     access_gateway_ip: IPv4Address
+    pfcp_node_id: IPv4Address
 
     def __init__(self, *, upf_config: UpfConfig):
         """Initialize a new instance of the CharmConfig class.
@@ -71,11 +75,13 @@ class CharmConfig:
         Args:
             upf_config: UPF operator configuration.
         """
+        self.logging_level = upf_config.logging_level
         self.gnb_subnet = upf_config.gnb_subnet
         self.core_ip = upf_config.core_ip
         self.core_gateway_ip = upf_config.core_gateway_ip
         self.access_ip = upf_config.access_ip
         self.access_gateway_ip = upf_config.access_gateway_ip
+        self.pfcp_node_id = upf_config.pfcp_node_id
 
     @classmethod
     def from_charm(

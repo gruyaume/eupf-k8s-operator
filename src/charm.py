@@ -19,7 +19,6 @@ from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.prometheus_k8s.v0.prometheus_scrape import (
     MetricsEndpointProvider,
 )
-from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from jinja2 import Environment, FileSystemLoader
 from kubernetes_eupf import EBPFVolume, PFCPService, get_upf_load_balancer_service_hostname
@@ -36,9 +35,10 @@ CONFIG_FILE_NAME = "config.yaml"
 CONFIG_PATH = "/etc/eupf"
 PFCP_PORT = 8805
 PROMETHEUS_PORT = 9090
-NETWORK_ATTACHMENT_DEFINITION_NAME = "eupf-net"
-INTERFACE_BRIDGE_NAME = "eupf-br"
-INTERFACE_NAME = "eupf"
+N3_NETWORK_ATTACHMENT_DEFINITION_NAME = "n3"
+N4_NETWORK_ATTACHMENT_DEFINITION_NAME = "n4"
+N3_INTERFACE_NAME = "n3"
+N4_INTERFACE_NAME = "n4"
 LOGGING_RELATION_NAME = "logging"
 
 
@@ -118,7 +118,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             app_name=self.model.app.name,
             unit_name=self.model.unit.name,
         )
-        self.fiveg_n3_provider = N3Provides(charm=self, relation_name="fiveg_n3")
         self.fiveg_n4_provider = N4Provides(charm=self, relation_name="fiveg_n4")
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
@@ -130,9 +129,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         )
         self.framework.observe(self.on.config_changed, self._configure)
         self.framework.observe(self.on.update_status, self._configure)
-        self.framework.observe(
-            self.fiveg_n3_provider.on.fiveg_n3_request, self._configure
-        )
         self.framework.observe(
             self.fiveg_n4_provider.on.fiveg_n4_request, self._configure
         )
@@ -169,17 +165,16 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._ebpf_volume.create()
         if not self._route_exists(
             dst="default",
-            via=str(self._charm_config.core_gateway_ip),
+            via=str(self._charm_config.n4_gateway_ip),
         ):
             self._create_default_route()
         if not self._route_exists(
             dst=str(self._charm_config.gnb_subnet),
-            via=str(self._charm_config.access_gateway_ip),
+            via=str(self._charm_config.n3_gateway_ip),
         ):
             self._create_ran_route()
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
-        self._update_fiveg_n3_relation_data()
         self._update_fiveg_n4_relation_data()
 
     def _on_remove(self, _: RemoveEvent) -> None:
@@ -219,7 +214,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """Create ip route towards core network."""
         try:
             self._exec_command_in_workload(
-            command=f"ip route replace default via {self._charm_config.core_gateway_ip} metric 110"
+                command=f"ip route replace default via {self._charm_config.n4_gateway_ip} metric 110"
             )
         except ExecError as e:
             logger.error("Failed to create core network route: %s", e.stderr)
@@ -233,7 +228,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """Create ip route towards gnb-subnet."""
         try:
             self._exec_command_in_workload(
-                command=f"ip route replace {self._charm_config.gnb_subnet} via {str(self._charm_config.access_gateway_ip)}"
+                command=f"ip route replace {self._charm_config.gnb_subnet} via {str(self._charm_config.n3_gateway_ip)}"
             )
         except ExecError as e:
             logger.error("Failed to create route to gnb-subnet: %s", e.stderr)
@@ -282,9 +277,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """
         content = render_upf_config_file(
             logging_level=self._charm_config.logging_level,
-            pfcp_address=f"{self._charm_config.core_ip}:{PFCP_PORT}",
-            n3_address=self._charm_config.access_ip,
-            interface_name=INTERFACE_NAME,
+            pfcp_address=f"{self._charm_config.n4_ip}:{PFCP_PORT}",
+            n3_address=str(self._charm_config.n3_ip),
+            interface_name=N3_INTERFACE_NAME,
             metrics_port=PROMETHEUS_PORT,
             pfcp_node_id=str(self._charm_config.pfcp_node_id),
         )
@@ -294,17 +289,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._write_upf_config_file(content=content)
             return True
         return False
-
-    def _update_fiveg_n3_relation_data(self) -> None:
-        fiveg_n3_relations = self.model.relations.get("fiveg_n3")
-        if not fiveg_n3_relations:
-            logger.info("No `fiveg_n3` relations found.")
-            return
-        for fiveg_n3_relation in fiveg_n3_relations:
-            self.fiveg_n3_provider.publish_upf_information(
-                relation_id=fiveg_n3_relation.id,
-                upf_ip_address=self._charm_config.access_ip,
-            )
 
     def _update_fiveg_n4_relation_data(self) -> None:
         fiveg_n4_relations = self.model.relations.get("fiveg_n4")
@@ -376,36 +360,56 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         )
 
     def _generate_network_annotations(self) -> List[NetworkAnnotation]:
-        network_annotation = NetworkAnnotation(
-            name=NETWORK_ATTACHMENT_DEFINITION_NAME,
-            interface=INTERFACE_NAME,
+        n3_network_annotation = NetworkAnnotation(
+            name=N3_NETWORK_ATTACHMENT_DEFINITION_NAME,
+            interface=N3_INTERFACE_NAME,
         )
-        return [network_annotation]
+        n4_network_annotation = NetworkAnnotation(
+            name=N4_NETWORK_ATTACHMENT_DEFINITION_NAME,
+            interface=N4_INTERFACE_NAME,
+        )
+        return [n3_network_annotation, n4_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
-        nad_config= {
+        n3_nad_config= {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
                 "addresses": [
-                    {"address": f"{self._charm_config.core_ip}/24"},
-                    {"address": f"{self._charm_config.access_ip}/24"},
+                    {"address": f"{self._charm_config.n3_ip}/24"},
                 ],
             },
             "capabilities": {"mac": True},
-            "type": "bridge",
-            "bridge": INTERFACE_BRIDGE_NAME
+        }
+        n4_nad_config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+                "addresses": [
+                    {"address": f"{self._charm_config.n4_ip}/24"},
+                ],
+            },
+            "capabilities": {"mac": True},
         }
 
-        nad = NetworkAttachmentDefinition(
+        n3_nad = NetworkAttachmentDefinition(
             metadata=ObjectMeta(
                 name=(
-                    NETWORK_ATTACHMENT_DEFINITION_NAME
+                    N3_NETWORK_ATTACHMENT_DEFINITION_NAME
                 )
             ),
-            spec={"config": json.dumps(nad_config)},
+            spec={"config": json.dumps(n3_nad_config)},
         )
-        return [nad]
+        n4_nad = NetworkAttachmentDefinition(
+            metadata=ObjectMeta(
+                name=(
+                    N4_NETWORK_ATTACHMENT_DEFINITION_NAME
+                )
+            ),
+            spec={"config": json.dumps(n4_nad_config)},
+        )
+        return [n3_nad, n4_nad]
+
 
 
 if __name__ == "__main__":  # pragma: nocover

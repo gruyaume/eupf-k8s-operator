@@ -45,19 +45,19 @@ config:
       type: string
       default: 192.168.251.0/24
       description: gNodeB subnet.
-    core-ip:
+    n4-ip:
       type: string
       default: 192.168.250.3
       description: IP address used by the UPF's Core interface.
-    core-gateway-ip:
+    n4-gateway-ip:
       type: string
       default: 192.168.250.1
       description: Gateway IP address to the Core Network.
-    access-ip:
+    n3-ip:
       type: string
       default: 192.168.252.3
       description: IP address used by the UPF's Access interface.
-    access-gateway-ip:
+    n3-gateway-ip:
       type: string
       default: 192.168.252.1
       description: Gateway IP address to the Access Network.
@@ -71,8 +71,6 @@ requires:
     interface: loki_push_api
 
 provides:
-  fiveg_n3:
-    interface: fiveg_n3
   fiveg_n4:
     interface: fiveg_n4
   metrics-endpoint:

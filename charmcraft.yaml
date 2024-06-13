@@ -11,6 +11,12 @@ bases:
     - name: ubuntu
       channel: "22.04"
 
+parts:
+  charm:
+    build-packages:
+      - cargo
+      - rustc
+
 containers:
   eupf:
     resource: eupf-image

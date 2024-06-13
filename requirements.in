@@ -1,7 +1,6 @@
 ops
 jinja2
 pydantic==2.6.4
-pydantic_extra_types
 lightkube
 lightkube-models
 cosl # Required by prometheus_k8s.v0.prometheus_scrape

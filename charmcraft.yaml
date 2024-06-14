@@ -39,7 +39,7 @@ config:
   options:
     logging-level:
       type: string
-      default: info
+      default: debug
       description: Logging level.
     gnb-subnet:
       type: string

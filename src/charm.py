@@ -35,8 +35,8 @@ CONFIG_FILE_NAME = "config.yaml"
 CONFIG_PATH = "/etc/eupf"
 PFCP_PORT = 8805
 PROMETHEUS_PORT = 9090
-N3_INTERFACE_BRIDGE_NAME = "n3-br"
-N4_INTERFACE_BRIDGE_NAME = "n4-br"
+N3_INTERFACE_BRIDGE_NAME = "access-br"
+N4_INTERFACE_BRIDGE_NAME = "core-br"
 N3_NETWORK_ATTACHMENT_DEFINITION_NAME = "n3-net"
 N4_NETWORK_ATTACHMENT_DEFINITION_NAME = "n4-net"
 N3_INTERFACE_NAME = "n3"
@@ -45,31 +45,31 @@ LOGGING_RELATION_NAME = "logging"
 
 
 def render_upf_config_file(
+    interfaces: str,
     logging_level: str,
     pfcp_address: str,
     pfcp_port: int,
     n3_address: str,
-    interface_name: str,
     metrics_port: int,
 ) -> str:
     """Render the configuration file for the 5G UPF service.
 
     Args:
+        interfaces: The interfaces to use.
         logging_level: The logging level.
         pfcp_address: The PFCP address.
         pfcp_port: The PFCP port.
         n3_address: The N3 address.
-        interface_name: The interface name.
         metrics_port: The port for the metrics.
     """
     jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
     template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
     content = template.render(
+        interfaces=interfaces,
         logging_level=logging_level,
         pfcp_address=pfcp_address,
         pfcp_port=pfcp_port,
         n3_address=n3_address,
-        interface_name=interface_name,
         metrics_port=metrics_port,
     )
     return content
@@ -278,11 +278,11 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             bool: Whether the configuration file was written.
         """
         content = render_upf_config_file(
+            interfaces=self._charm_config.interfaces,
             logging_level=self._charm_config.logging_level,
             pfcp_address=str(self._charm_config.n4_ip),
             pfcp_port=PFCP_PORT,
             n3_address=str(self._charm_config.n3_ip),
-            interface_name=N3_INTERFACE_NAME,
             metrics_port=PROMETHEUS_PORT,
         )
         if not self._upf_config_file_is_written() or not self._upf_config_file_content_matches(

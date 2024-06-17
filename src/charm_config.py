@@ -39,6 +39,7 @@ class UpfConfig(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
 
+    interfaces: str = "[n3]"
     logging_level: str = "info"
     gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
     n3_ip: IPv4Address = IPv4Address("192.168.252.3")
@@ -52,6 +53,7 @@ class UpfConfig(BaseModel):
 class CharmConfig:
     """Represent the configuration of the charm."""
 
+    interfaces: str
     logging_level: str
     gnb_subnet: IPv4Network
     n3_ip: IPv4Address
@@ -66,6 +68,7 @@ class CharmConfig:
         Args:
             upf_config: UPF operator configuration.
         """
+        self.interfaces = upf_config.interfaces
         self.logging_level = upf_config.logging_level
         self.gnb_subnet = upf_config.gnb_subnet
         self.n3_ip = upf_config.n3_ip

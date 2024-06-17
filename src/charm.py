@@ -175,6 +175,8 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             via=str(self._charm_config.n3_gateway_ip),
         ):
             self._create_ran_route()
+        if not self._ip_tables_rule_exists():
+            self._create_ip_tables_rule()
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
         self._update_fiveg_n4_relation_data()
@@ -186,6 +188,31 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """
         if self._pfcp_service.is_created():
             self._pfcp_service.delete()
+
+    def _ip_tables_rule_exists(self) -> bool:
+        """Return whether iptables rule already exists using the `--check` parameter.
+
+        Returns:
+            bool: Whether iptables rule exists
+        """
+        try:
+            self._exec_command_in_workload(
+                command="iptables-legacy --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"  # noqa: E501
+            )
+            return True
+        except ExecError:
+            return False
+
+    def _create_ip_tables_rule(self) -> None:
+        """Create iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
+        try:
+            self._exec_command_in_workload(
+                command="iptables-legacy -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
+            )
+        except ExecError as e:
+            logger.error("Failed to create iptables rule for ICMP: %s", e.stderr)
+            return
+        logger.info("Iptables rule for ICMP created")
 
     def _exec_command_in_workload(
         self, command: str, timeout: Optional[int] = 30, environment: Optional[dict] = None

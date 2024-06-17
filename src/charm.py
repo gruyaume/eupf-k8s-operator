@@ -200,7 +200,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
     def _route_exists(self, dst: str, via: str | None) -> bool:
         """Return whether the specified route exist."""
         try:
-            stdout, stderr = self._exec_command_in_workload(command="ip route show")
+            stdout, _ = self._exec_command_in_workload(command="ip route show")
         except ExecError as e:
             logger.error("Failed retrieving routes: %s", e.stderr)
             return False

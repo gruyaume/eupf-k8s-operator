@@ -37,6 +37,10 @@ storage:
 
 config:
   options:
+    interfaces:
+      type: string
+      default: "[n3]"
+      description: List of network interfaces handling N3 (GTP) & N6 (SGi) traffic. eUPF attaches XDP hook to every interface in this list.
     logging-level:
       type: string
       default: debug

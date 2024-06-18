@@ -35,12 +35,12 @@ CONFIG_FILE_NAME = "config.yaml"
 CONFIG_PATH = "/etc/eupf"
 PFCP_PORT = 8805
 PROMETHEUS_PORT = 9090
-ACCESS_INTERFACE_BRIDGE_NAME = "access-br"
-CORE_INTERFACE_NAME = "core-br"
-ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME = "access-net"
-CORE_NETWORK_ATTACHMENT_DEFINITION_NAME = "core-net"
-ACCESS_INTERFACE_NAME = "access"
-CORE_INTERFACE_NAME = "core"
+N3_INTERFACE_BRIDGE_NAME = "access-br"
+N4_INTERFACE_BRIDGE_NAME = "core-br"
+N3_NETWORK_ATTACHMENT_DEFINITION_NAME = "n3-net"
+N4_NETWORK_ATTACHMENT_DEFINITION_NAME = "n4-net"
+N3_INTERFACE_NAME = "n3"
+N4_INTERFACE_NAME = "n4"
 LOGGING_RELATION_NAME = "logging"
 
 
@@ -167,12 +167,12 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._ebpf_volume.create()
         if not self._route_exists(
             dst="default",
-            via=str(self._charm_config.core_gateway_ip),
+            via=str(self._charm_config.n4_gateway_ip),
         ):
             self._create_default_route()
         if not self._route_exists(
             dst=str(self._charm_config.gnb_subnet),
-            via=str(self._charm_config.access_gateway_ip),
+            via=str(self._charm_config.n3_gateway_ip),
         ):
             self._create_ran_route()
         if not self._ip_tables_rule_exists():
@@ -239,7 +239,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """Create ip route towards core network."""
         try:
             self._exec_command_in_workload(
-                command=f"ip route replace default via {self._charm_config.core_gateway_ip} metric 110"
+                command=f"ip route replace default via {self._charm_config.n4_gateway_ip} metric 110"
             )
         except ExecError as e:
             logger.error("Failed to create core network route: %s", e.stderr)
@@ -253,7 +253,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """Create ip route towards gnb-subnet."""
         try:
             self._exec_command_in_workload(
-                command=f"ip route replace {self._charm_config.gnb_subnet} via {str(self._charm_config.access_gateway_ip)}"
+                command=f"ip route replace {self._charm_config.gnb_subnet} via {str(self._charm_config.n3_gateway_ip)}"
             )
         except ExecError as e:
             logger.error("Failed to create route to gnb-subnet: %s", e.stderr)
@@ -303,9 +303,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         content = render_upf_config_file(
             interfaces=self._charm_config.interfaces,
             logging_level=self._charm_config.logging_level,
-            pfcp_address=str(self._charm_config.core_ip),
+            pfcp_address=str(self._charm_config.n4_ip),
             pfcp_port=PFCP_PORT,
-            n3_address=str(self._charm_config.access_ip),
+            n3_address=str(self._charm_config.n3_ip),
             metrics_port=PROMETHEUS_PORT,
         )
         if not self._upf_config_file_is_written() or not self._upf_config_file_content_matches(
@@ -385,59 +385,59 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         )
 
     def _generate_network_annotations(self) -> List[NetworkAnnotation]:
-        access_network_annotation = NetworkAnnotation(
-            name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-            interface=ACCESS_INTERFACE_NAME,
+        n3_network_annotation = NetworkAnnotation(
+            name=N3_NETWORK_ATTACHMENT_DEFINITION_NAME,
+            interface=N3_INTERFACE_NAME,
         )
-        core_network_annotation = NetworkAnnotation(
-            name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-            interface=CORE_INTERFACE_NAME,
+        n4_network_annotation = NetworkAnnotation(
+            name=N4_NETWORK_ATTACHMENT_DEFINITION_NAME,
+            interface=N4_INTERFACE_NAME,
         )
-        return [access_network_annotation, core_network_annotation]
+        return [n3_network_annotation, n4_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
-        access_nad_config= {
+        n3_nad_config= {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
                 "addresses": [
-                    {"address": f"{self._charm_config.access_ip}/24"},
+                    {"address": f"{self._charm_config.n3_ip}/24"},
                 ],
             },
             "capabilities": {"mac": True},
             "type": "bridge",
-            "bridge": ACCESS_INTERFACE_BRIDGE_NAME
+            "bridge": N3_INTERFACE_BRIDGE_NAME
         }
-        core_nad_config = {
+        n4_nad_config = {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
                 "addresses": [
-                    {"address": f"{self._charm_config.core_ip}/24"},
+                    {"address": f"{self._charm_config.n4_ip}/24"},
                 ],
             },
             "capabilities": {"mac": True},
             "type": "bridge",
-            "bridge": CORE_INTERFACE_NAME
+            "bridge": N4_INTERFACE_BRIDGE_NAME
         }
 
-        access_nad = NetworkAttachmentDefinition(
+        n3_nad = NetworkAttachmentDefinition(
             metadata=ObjectMeta(
                 name=(
-                    ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
+                    N3_NETWORK_ATTACHMENT_DEFINITION_NAME
                 )
             ),
-            spec={"config": json.dumps(access_nad_config)},
+            spec={"config": json.dumps(n3_nad_config)},
         )
-        core_nad = NetworkAttachmentDefinition(
+        n4_nad = NetworkAttachmentDefinition(
             metadata=ObjectMeta(
                 name=(
-                    CORE_NETWORK_ATTACHMENT_DEFINITION_NAME
+                    N4_NETWORK_ATTACHMENT_DEFINITION_NAME
                 )
             ),
-            spec={"config": json.dumps(core_nad_config)},
+            spec={"config": json.dumps(n4_nad_config)},
         )
-        return [access_nad, core_nad]
+        return [n3_nad, n4_nad]
 
 
 

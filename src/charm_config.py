@@ -39,13 +39,13 @@ class UpfConfig(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
 
-    interfaces: str = "[access]"
+    interfaces: str = "[n3]"
     logging_level: str = "info"
     gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
-    access_ip: IPv4Address = IPv4Address("192.168.252.3")
-    access_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
-    core_ip: IPv4Address = IPv4Address("192.168.250.3")
-    core_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
+    n3_ip: IPv4Address = IPv4Address("192.168.252.3")
+    n3_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
+    n4_ip: IPv4Address = IPv4Address("192.168.250.3")
+    n4_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     pfcp_node_id: IPv4Address = IPv4Address("127.0.0.1")
 
 
@@ -56,10 +56,10 @@ class CharmConfig:
     interfaces: str
     logging_level: str
     gnb_subnet: IPv4Network
-    access_ip: IPv4Address
-    access_gateway_ip: IPv4Address
-    core_ip: IPv4Address
-    core_gateway_ip: IPv4Address
+    n3_ip: IPv4Address
+    n3_gateway_ip: IPv4Address
+    n4_ip: IPv4Address
+    n4_gateway_ip: IPv4Address
     pfcp_node_id: IPv4Address
 
     def __init__(self, *, upf_config: UpfConfig):
@@ -71,10 +71,10 @@ class CharmConfig:
         self.interfaces = upf_config.interfaces
         self.logging_level = upf_config.logging_level
         self.gnb_subnet = upf_config.gnb_subnet
-        self.access_ip = upf_config.access_ip
-        self.access_gateway_ip = upf_config.access_gateway_ip
-        self.core_ip = upf_config.core_ip
-        self.core_gateway_ip = upf_config.core_gateway_ip
+        self.n3_ip = upf_config.n3_ip
+        self.n3_gateway_ip = upf_config.n3_gateway_ip
+        self.n4_ip = upf_config.n4_ip
+        self.n4_gateway_ip = upf_config.n4_gateway_ip
         self.pfcp_node_id = upf_config.pfcp_node_id
 
     @classmethod

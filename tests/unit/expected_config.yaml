@@ -1,4 +1,4 @@
-interface_name: [n3]
+interface_name: [n3,n6]
 pfcp_address: :8805
 metrics_address: :9090
 n3_address: 192.168.252.3

@@ -44,8 +44,8 @@ class UpfConfig(BaseModel):
     gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
     n3_ip: IPv4Address = IPv4Address("192.168.252.3")
     n3_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
-    n4_ip: IPv4Address = IPv4Address("192.168.250.3")
-    n4_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
+    n6_ip: IPv4Address = IPv4Address("192.168.250.3")
+    n6_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     pfcp_node_id: IPv4Address = IPv4Address("127.0.0.1")
 
 
@@ -58,8 +58,8 @@ class CharmConfig:
     gnb_subnet: IPv4Network
     n3_ip: IPv4Address
     n3_gateway_ip: IPv4Address
-    n4_ip: IPv4Address
-    n4_gateway_ip: IPv4Address
+    n6_ip: IPv4Address
+    n6_gateway_ip: IPv4Address
     pfcp_node_id: IPv4Address
 
     def __init__(self, *, upf_config: UpfConfig):
@@ -73,8 +73,8 @@ class CharmConfig:
         self.gnb_subnet = upf_config.gnb_subnet
         self.n3_ip = upf_config.n3_ip
         self.n3_gateway_ip = upf_config.n3_gateway_ip
-        self.n4_ip = upf_config.n4_ip
-        self.n4_gateway_ip = upf_config.n4_gateway_ip
+        self.n6_ip = upf_config.n6_ip
+        self.n6_gateway_ip = upf_config.n6_gateway_ip
         self.pfcp_node_id = upf_config.pfcp_node_id
 
     @classmethod

@@ -10,16 +10,16 @@ from subprocess import check_output
 import ops
 import yaml
 from charm_config import CharmConfig, CharmConfigInvalidError
+from charms.kubernetes_charm_libraries.v0.multus import KubernetesMultusCharmLib
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.prometheus_k8s.v0.prometheus_scrape import (
     MetricsEndpointProvider,
 )
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from jinja2 import Environment, FileSystemLoader
-from kubernetes_eupf import EBPFVolume, PFCPService, get_upf_load_balancer_service_hostname
-from ops import RemoveEvent
+from kubernetes_eupf import EBPFVolume
 from ops.charm import CollectStatusEvent
-from ops.model import ActiveStatus, ModelError, WaitingStatus
+from ops.model import ActiveStatus, ModelError, Port, WaitingStatus
 from ops.pebble import ConnectionError, Layer
 
 logger = logging.getLogger(__name__)
@@ -71,15 +71,18 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         self._container_name = self._service_name = "eupf"
         self._container = self.unit.get_container(self._container_name)
         self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
-        self.unit.set_ports(PROMETHEUS_PORT)
+        pfcp_port = Port(protocol="udp", port=PFCP_PORT)
+        self.unit.set_ports(PROMETHEUS_PORT, pfcp_port)
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
             return
-        self._pfcp_service = PFCPService(
-            namespace=self.model.name,
-            app_name=self.model.app.name,
-            pfcp_port=PFCP_PORT,
+        self._kubernetes_multus = KubernetesMultusCharmLib(
+            charm=self,
+            container_name=self._container_name,
+            cap_net_admin=True,
+            refresh_event=self.on.config_changed,
+            privileged=True,
         )
         self._ebpf_volume = EBPFVolume(
             namespace=self.model.name,
@@ -101,7 +104,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         self.framework.observe(
             self.fiveg_n4_provider.on.fiveg_n4_request, self._configure
         )
-        self.framework.observe(self.on.remove, self._on_remove)
 
     def _on_collect_status(self, event: CollectStatusEvent):
         """Collect the status of the unit."""
@@ -125,21 +127,11 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         if not self._container.can_connect():
             logger.info("Cannot connect to the container")
             return
-        if not self._pfcp_service.is_created():
-            self._pfcp_service.create()
         if not self._ebpf_volume.is_created():
             self._ebpf_volume.create()
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
         self._update_fiveg_n4_relation_data()
-
-    def _on_remove(self, _: RemoveEvent) -> None:
-        """Handle the removal of the charm.
-
-        Delete the PFCP service.
-        """
-        if self._pfcp_service.is_created():
-            self._pfcp_service.delete()
 
     def _eupf_service_is_running(self) -> bool:
         try:
@@ -201,18 +193,13 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         for fiveg_n4_relation in fiveg_n4_relations:
             self.fiveg_n4_provider.publish_upf_n4_information(
                 relation_id=fiveg_n4_relation.id,
-                upf_hostname=self._get_n4_upf_hostname(),
+                upf_hostname=self._upf_hostname,
                 upf_n4_port=PFCP_PORT,
             )
 
-    def _get_n4_upf_hostname(self) -> str:
-        if lb_hostname := get_upf_load_balancer_service_hostname(namespace=self.model.name, app_name=self.model.app.name):
-            return lb_hostname
-        return self._upf_hostname
-
     @property
     def _upf_hostname(self) -> str:
-        return f"{self.model.app.name}-external.{self.model.name}.svc.cluster.local"
+        return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
 
     def _configure_pebble(self, restart: bool) -> None:
         """Configure the Pebble layer.

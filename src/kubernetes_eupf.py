@@ -7,19 +7,15 @@
 import logging
 from typing import Iterable, Optional
 
-from httpx import HTTPStatusError
 from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.models.apps_v1 import StatefulSetSpec
 from lightkube.models.core_v1 import (
     Container,
     HostPathVolumeSource,
-    ServicePort,
-    ServiceSpec,
     Volume,
     VolumeMount,
 )
-from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import Pod, Service
 
@@ -41,64 +37,6 @@ def get_upf_load_balancer_service_hostname(namespace: str, app_name: str) -> Opt
             service,
         )
         return None
-
-class PFCPService:
-    """PFCP service for the UPF."""
-    def __init__(self, namespace: str, app_name: str, pfcp_port: int):
-        self.client = Client()  # type: ignore[reportArgumentType]
-        self.namespace = namespace
-        self.app_name = app_name
-        self.pfcp_port = pfcp_port
-
-    def is_created(self) -> bool:
-        """Check if the external UPF service is created."""
-        try:
-            service = self.client.get(
-                Service,
-                namespace=self.namespace,
-                name=f"{self.app_name}-external",
-            )
-        except ApiError:
-            return False
-        return service is not None
-
-    def create(self) -> None:
-        """Create the external UPF service."""
-        service = Service(
-            apiVersion="v1",
-            kind="Service",
-            metadata=ObjectMeta(
-                namespace=self.namespace,
-                name=f"{self.app_name}-external",
-                labels={
-                    "app.kubernetes.io/name": self.app_name,
-                },
-            ),
-            spec=ServiceSpec(
-                selector={
-                    "app.kubernetes.io/name": self.app_name,
-                },
-                ports=[
-                    ServicePort(name="pfcp", port=self.pfcp_port, protocol="UDP"),
-                ],
-                type="LoadBalancer",
-            ),
-        )
-        self.client.apply(service, field_manager=self.app_name)
-        logger.info("Created/asserted existence of the external UPF service")
-
-    def delete(self) -> None:
-        """Delete the external UPF service."""
-        try:
-            self.client.delete(
-                Service,
-                name=f"{self.app_name}-external",
-                namespace=self.namespace,
-            )
-            logger.info("Deleted external UPF service")
-        except HTTPStatusError as status:
-            logger.info(f"Could not delete {self.app_name}-external due to: {status}")
-
 
 class EBPFVolume:
     """eBPF volume for the UPF."""

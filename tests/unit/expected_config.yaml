@@ -1,6 +1,6 @@
-interface_name: [access]
+interface_name: [eth0]
 pfcp_address: :8805
 metrics_address: :9090
-n3_address: 192.168.252.3
+n3_address: 1.1.1.1
 logging_level: debug
-pfcp_node_id: 192.168.250.3
+pfcp_node_id: 1.1.1.1

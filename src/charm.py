@@ -31,6 +31,7 @@ from ops.pebble import ConnectionError, ExecError, Layer
 
 logger = logging.getLogger(__name__)
 
+UE_SUBNET = "172.250.1.0/16"
 CONFIG_FILE_NAME = "config.yaml"
 CONFIG_PATH = "/etc/eupf"
 PFCP_PORT = 8805
@@ -165,18 +166,10 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._pfcp_service.create()
         if not self._ebpf_volume.is_created():
             self._ebpf_volume.create()
-        if not self._route_exists(
-            dst="default",
-            via=str(self._charm_config.n6_gateway_ip),
-        ):
-            self._create_default_route()
-        if not self._route_exists(
-            dst=str(self._charm_config.gnb_subnet),
-            via=str(self._charm_config.n3_gateway_ip),
-        ):
-            self._create_ran_route()
-        if not self._ip_tables_rule_exists():
-            self._create_ip_tables_rule()
+        self._accept_forwarded_packets()
+        self._add_routing_table()
+        self._create_ip_rule()
+        self._create_default_route()
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
         self._update_fiveg_n4_relation_data()
@@ -189,26 +182,48 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         if self._pfcp_service.is_created():
             self._pfcp_service.delete()
 
-    def _ip_tables_rule_exists(self) -> bool:
-        """Return whether iptables rule already exists using the `--check` parameter."""
+    def _accept_forwarded_packets(self) -> None:
+        """Configure packet filtering rules to accept all forwarded packets."""
         try:
             self._exec_command_in_workload(
-                command="iptables-legacy --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"  # noqa: E501
-            )
-            return True
-        except ExecError:
-            return False
-
-    def _create_ip_tables_rule(self) -> None:
-        """Create iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
-        try:
-            self._exec_command_in_workload(
-                command="iptables-legacy -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
+                command="iptables-legacy -A FORWARD -j ACCEPT"
             )
         except ExecError as e:
-            logger.error("Failed to create iptables rule for ICMP: %s", e.stderr)
+            logger.error("Failed to run iptables command: %s", e.stderr)
             return
-        logger.info("Iptables rule for ICMP created")
+        logger.info("Iptables command ran successfully")
+
+    def _add_routing_table(self) -> None:
+        """Add a routing table named n6if with ID 1200."""
+        try:
+            self._exec_command_in_workload(
+                command="""echo "1200 n6if" >> /etc/iproute2/rt_tables"""
+            )
+        except ExecError as e:
+            logger.error("Failed to add routing table: %s", e.stderr)
+            return
+        logger.info("Routing table added successfully")
+
+    def _create_ip_rule(self) -> None:
+        """Add a rule to use the n6if table for traffic from the User Equipment subnet."""
+        try:
+            self._exec_command_in_workload(
+                command=f"ip rule add from {UE_SUBNET} table n6if"
+            )
+        except ExecError as e:
+            logger.error("Failed to add ip rule: %s", e.stderr)
+            return
+
+    def _create_default_route(self) -> None:
+        """Add a default route in the n6if table via the N6 Gateway and N6 network interface."""
+        try:
+            self._exec_command_in_workload(
+                command=f"ip route add default via {self._charm_config.n6_gateway_ip} dev {N6_INTERFACE_NAME} table n6if"
+            )
+        except ExecError as e:
+            logger.error("Failed to add default route: %s", e.stderr)
+            return
+        logger.info("Default route added successfully")
 
     def _exec_command_in_workload(
         self, command: str, timeout: Optional[int] = 30, environment: Optional[dict] = None
@@ -234,34 +249,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             if f"{dst} via {via}" in line:
                 return True
         return False
-
-    def _create_default_route(self) -> None:
-        """Create ip route towards core network."""
-        try:
-            self._exec_command_in_workload(
-                command=f"ip route replace default via {self._charm_config.n6_gateway_ip} metric 110"
-            )
-        except ExecError as e:
-            logger.error("Failed to create core network route: %s", e.stderr)
-            return
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return
-        logger.info("Default core network route created")
-
-    def _create_ran_route(self) -> None:
-        """Create ip route towards gnb-subnet."""
-        try:
-            self._exec_command_in_workload(
-                command=f"ip route replace {self._charm_config.gnb_subnet} via {str(self._charm_config.n3_gateway_ip)}"
-            )
-        except ExecError as e:
-            logger.error("Failed to create route to gnb-subnet: %s", e.stderr)
-            return
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return
-        logger.info("Route to gnb-subnet created")
 
     def _eupf_service_is_running(self) -> bool:
         try:
@@ -389,11 +376,11 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             name=N3_NETWORK_ATTACHMENT_DEFINITION_NAME,
             interface=N3_INTERFACE_NAME,
         )
-        n4_network_annotation = NetworkAnnotation(
+        n6_network_annotation = NetworkAnnotation(
             name=N6_NETWORK_ATTACHMENT_DEFINITION_NAME,
             interface=N6_INTERFACE_NAME,
         )
-        return [n3_network_annotation, n4_network_annotation]
+        return [n3_network_annotation, n6_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         n3_nad_config= {
@@ -408,7 +395,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             "type": "bridge",
             "bridge": N3_INTERFACE_BRIDGE_NAME
         }
-        n4_nad_config = {
+        n6_nad_config = {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
@@ -429,15 +416,15 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             ),
             spec={"config": json.dumps(n3_nad_config)},
         )
-        n4_nad = NetworkAttachmentDefinition(
+        n6_nad = NetworkAttachmentDefinition(
             metadata=ObjectMeta(
                 name=(
                     N6_NETWORK_ATTACHMENT_DEFINITION_NAME
                 )
             ),
-            spec={"config": json.dumps(n4_nad_config)},
+            spec={"config": json.dumps(n6_nad_config)},
         )
-        return [n3_nad, n4_nad]
+        return [n3_nad, n6_nad]
 
 
 

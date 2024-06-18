@@ -39,7 +39,7 @@ config:
   options:
     interfaces:
       type: string
-      default: "[n3]"
+      default: "[n3,n6]"
       description: List of network interfaces handling N3 (GTP) & N6 (SGi) traffic. eUPF attaches XDP hook to every interface in this list.
     logging-level:
       type: string
@@ -49,11 +49,11 @@ config:
       type: string
       default: 192.168.251.0/24
       description: gNodeB subnet.
-    n4-ip:
+    n6-ip:
       type: string
       default: 192.168.250.3
       description: IP address used by the UPF's Core interface.
-    n4-gateway-ip:
+    n6-gateway-ip:
       type: string
       default: 192.168.250.1
       description: Gateway IP address to the Core Network.

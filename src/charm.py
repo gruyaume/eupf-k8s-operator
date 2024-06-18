@@ -36,11 +36,11 @@ CONFIG_PATH = "/etc/eupf"
 PFCP_PORT = 8805
 PROMETHEUS_PORT = 9090
 N3_INTERFACE_BRIDGE_NAME = "access-br"
-N4_INTERFACE_BRIDGE_NAME = "core-br"
+N6_INTERFACE_BRIDGE_NAME = "core-br"
 N3_NETWORK_ATTACHMENT_DEFINITION_NAME = "n3-net"
-N4_NETWORK_ATTACHMENT_DEFINITION_NAME = "n4-net"
+N6_NETWORK_ATTACHMENT_DEFINITION_NAME = "n6-net"
 N3_INTERFACE_NAME = "n3"
-N4_INTERFACE_NAME = "n4"
+N6_INTERFACE_NAME = "n6"
 LOGGING_RELATION_NAME = "logging"
 
 
@@ -167,7 +167,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._ebpf_volume.create()
         if not self._route_exists(
             dst="default",
-            via=str(self._charm_config.n4_gateway_ip),
+            via=str(self._charm_config.n6_gateway_ip),
         ):
             self._create_default_route()
         if not self._route_exists(
@@ -239,7 +239,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """Create ip route towards core network."""
         try:
             self._exec_command_in_workload(
-                command=f"ip route replace default via {self._charm_config.n4_gateway_ip} metric 110"
+                command=f"ip route replace default via {self._charm_config.n6_gateway_ip} metric 110"
             )
         except ExecError as e:
             logger.error("Failed to create core network route: %s", e.stderr)
@@ -303,7 +303,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         content = render_upf_config_file(
             interfaces=self._charm_config.interfaces,
             logging_level=self._charm_config.logging_level,
-            pfcp_address=str(self._charm_config.n4_ip),
+            pfcp_address=str(self._charm_config.n6_ip),
             pfcp_port=PFCP_PORT,
             n3_address=str(self._charm_config.n3_ip),
             metrics_port=PROMETHEUS_PORT,
@@ -390,8 +390,8 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             interface=N3_INTERFACE_NAME,
         )
         n4_network_annotation = NetworkAnnotation(
-            name=N4_NETWORK_ATTACHMENT_DEFINITION_NAME,
-            interface=N4_INTERFACE_NAME,
+            name=N6_NETWORK_ATTACHMENT_DEFINITION_NAME,
+            interface=N6_INTERFACE_NAME,
         )
         return [n3_network_annotation, n4_network_annotation]
 
@@ -413,12 +413,12 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             "ipam": {
                 "type": "static",
                 "addresses": [
-                    {"address": f"{self._charm_config.n4_ip}/24"},
+                    {"address": f"{self._charm_config.n6_ip}/24"},
                 ],
             },
             "capabilities": {"mac": True},
             "type": "bridge",
-            "bridge": N4_INTERFACE_BRIDGE_NAME
+            "bridge": N6_INTERFACE_BRIDGE_NAME
         }
 
         n3_nad = NetworkAttachmentDefinition(
@@ -432,7 +432,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         n4_nad = NetworkAttachmentDefinition(
             metadata=ObjectMeta(
                 name=(
-                    N4_NETWORK_ATTACHMENT_DEFINITION_NAME
+                    N6_NETWORK_ATTACHMENT_DEFINITION_NAME
                 )
             ),
             spec={"config": json.dumps(n4_nad_config)},

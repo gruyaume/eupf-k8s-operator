@@ -3,18 +3,13 @@
 
 """Kubernetes charm for eUPF."""
 
-import json
 import logging
-from typing import List, Optional, Tuple
+from ipaddress import IPv4Address
+from subprocess import check_output
 
 import ops
 import yaml
 from charm_config import CharmConfig, CharmConfigInvalidError
-from charms.kubernetes_charm_libraries.v0.multus import (
-    KubernetesMultusCharmLib,
-    NetworkAnnotation,
-    NetworkAttachmentDefinition,
-)
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.prometheus_k8s.v0.prometheus_scrape import (
     MetricsEndpointProvider,
@@ -22,12 +17,10 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from jinja2 import Environment, FileSystemLoader
 from kubernetes_eupf import EBPFVolume, PFCPService, get_upf_load_balancer_service_hostname
-from lightkube.models.meta_v1 import ObjectMeta
 from ops import RemoveEvent
-from ops.charm import CharmEvents, CollectStatusEvent
-from ops.framework import EventBase, EventSource
+from ops.charm import CollectStatusEvent
 from ops.model import ActiveStatus, ModelError, WaitingStatus
-from ops.pebble import ConnectionError, ExecError, Layer
+from ops.pebble import ConnectionError, Layer
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +28,6 @@ CONFIG_FILE_NAME = "config.yaml"
 CONFIG_PATH = "/etc/eupf"
 PFCP_PORT = 8805
 PROMETHEUS_PORT = 9090
-ACCESS_INTERFACE_BRIDGE_NAME = "access-br"
-CORE_INTERFACE_NAME = "core-br"
-ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME = "access-net"
-CORE_NETWORK_ATTACHMENT_DEFINITION_NAME = "core-net"
-ACCESS_INTERFACE_NAME = "access"
-CORE_INTERFACE_NAME = "core"
 LOGGING_RELATION_NAME = "logging"
 
 
@@ -74,20 +61,9 @@ def render_upf_config_file(
     )
     return content
 
-class NadConfigChangedEvent(EventBase):
-    """Event triggered when an existing network attachment definition is changed."""
-
-
-class UpfOperatorCharmEvents(CharmEvents):
-    """Kubernetes UPF operator charm events."""
-
-    nad_config_changed = EventSource(NadConfigChangedEvent)
-
 
 class EupfK8SOperatorCharm(ops.CharmBase):
     """Charm the service."""
-
-    on = UpfOperatorCharmEvents()  # type: ignore[reportAssignmentType]
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -100,15 +76,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
             return
-        self._kubernetes_multus = KubernetesMultusCharmLib(
-            charm=self,
-            container_name=self._container_name,
-            cap_net_admin=True,
-            network_annotations_func=self._generate_network_annotations,
-            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
-            refresh_event=self.on.nad_config_changed,
-            privileged=True,
-        )
         self._pfcp_service = PFCPService(
             namespace=self.model.name,
             app_name=self.model.app.name,
@@ -158,25 +125,10 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         if not self._container.can_connect():
             logger.info("Cannot connect to the container")
             return
-        if not self._kubernetes_multus.multus_is_available():
-            return
-        self.on.nad_config_changed.emit()
         if not self._pfcp_service.is_created():
             self._pfcp_service.create()
         if not self._ebpf_volume.is_created():
             self._ebpf_volume.create()
-        if not self._route_exists(
-            dst="default",
-            via=str(self._charm_config.core_gateway_ip),
-        ):
-            self._create_default_route()
-        if not self._route_exists(
-            dst=str(self._charm_config.gnb_subnet),
-            via=str(self._charm_config.access_gateway_ip),
-        ):
-            self._create_ran_route()
-        if not self._ip_tables_rule_exists():
-            self._create_ip_tables_rule()
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
         self._update_fiveg_n4_relation_data()
@@ -188,80 +140,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """
         if self._pfcp_service.is_created():
             self._pfcp_service.delete()
-
-    def _ip_tables_rule_exists(self) -> bool:
-        """Return whether iptables rule already exists using the `--check` parameter."""
-        try:
-            self._exec_command_in_workload(
-                command="iptables-legacy --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"  # noqa: E501
-            )
-            return True
-        except ExecError:
-            return False
-
-    def _create_ip_tables_rule(self) -> None:
-        """Create iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
-        try:
-            self._exec_command_in_workload(
-                command="iptables-legacy -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
-            )
-        except ExecError as e:
-            logger.error("Failed to create iptables rule for ICMP: %s", e.stderr)
-            return
-        logger.info("Iptables rule for ICMP created")
-
-    def _exec_command_in_workload(
-        self, command: str, timeout: Optional[int] = 30, environment: Optional[dict] = None
-    ) -> Tuple[str, str | None]:
-        process = self._container.exec(
-            command=command.split(),
-            timeout=timeout,
-            environment=environment,
-        )
-        return process.wait_output()
-
-    def _route_exists(self, dst: str, via: str | None) -> bool:
-        """Return whether the specified route exist."""
-        try:
-            stdout, _ = self._exec_command_in_workload(command="ip route show")
-        except ExecError as e:
-            logger.error("Failed retrieving routes: %s", e.stderr)
-            return False
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return False
-        for line in stdout.splitlines():
-            if f"{dst} via {via}" in line:
-                return True
-        return False
-
-    def _create_default_route(self) -> None:
-        """Create ip route towards core network."""
-        try:
-            self._exec_command_in_workload(
-                command=f"ip route replace default via {self._charm_config.core_gateway_ip} metric 110"
-            )
-        except ExecError as e:
-            logger.error("Failed to create core network route: %s", e.stderr)
-            return
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return
-        logger.info("Default core network route created")
-
-    def _create_ran_route(self) -> None:
-        """Create ip route towards gnb-subnet."""
-        try:
-            self._exec_command_in_workload(
-                command=f"ip route replace {self._charm_config.gnb_subnet} via {str(self._charm_config.access_gateway_ip)}"
-            )
-        except ExecError as e:
-            logger.error("Failed to create route to gnb-subnet: %s", e.stderr)
-            return
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return
-        logger.info("Route to gnb-subnet created")
 
     def _eupf_service_is_running(self) -> bool:
         try:
@@ -301,11 +179,11 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             bool: Whether the configuration file was written.
         """
         content = render_upf_config_file(
-            interfaces=self._charm_config.interfaces,
+            interfaces="[eth0]",
             logging_level=self._charm_config.logging_level,
-            pfcp_address=str(self._charm_config.core_ip),
+            pfcp_address=get_pod_ip(),
             pfcp_port=PFCP_PORT,
-            n3_address=str(self._charm_config.access_ip),
+            n3_address=get_pod_ip(),
             metrics_port=PROMETHEUS_PORT,
         )
         if not self._upf_config_file_is_written() or not self._upf_config_file_content_matches(
@@ -384,62 +262,10 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             }
         )
 
-    def _generate_network_annotations(self) -> List[NetworkAnnotation]:
-        access_network_annotation = NetworkAnnotation(
-            name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-            interface=ACCESS_INTERFACE_NAME,
-        )
-        core_network_annotation = NetworkAnnotation(
-            name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-            interface=CORE_INTERFACE_NAME,
-        )
-        return [access_network_annotation, core_network_annotation]
-
-    def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
-        access_nad_config= {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "addresses": [
-                    {"address": f"{self._charm_config.access_ip}/24"},
-                ],
-            },
-            "capabilities": {"mac": True},
-            "type": "bridge",
-            "bridge": ACCESS_INTERFACE_BRIDGE_NAME
-        }
-        core_nad_config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "addresses": [
-                    {"address": f"{self._charm_config.core_ip}/24"},
-                ],
-            },
-            "capabilities": {"mac": True},
-            "type": "bridge",
-            "bridge": CORE_INTERFACE_NAME
-        }
-
-        access_nad = NetworkAttachmentDefinition(
-            metadata=ObjectMeta(
-                name=(
-                    ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
-                )
-            ),
-            spec={"config": json.dumps(access_nad_config)},
-        )
-        core_nad = NetworkAttachmentDefinition(
-            metadata=ObjectMeta(
-                name=(
-                    CORE_NETWORK_ATTACHMENT_DEFINITION_NAME
-                )
-            ),
-            spec={"config": json.dumps(core_nad_config)},
-        )
-        return [access_nad, core_nad]
-
-
+def get_pod_ip() -> str:
+    """Return the pod IP using juju client."""
+    ip_address = check_output(["unit-get", "private-address"])
+    return str(IPv4Address(ip_address.decode().strip())) if ip_address else ""
 
 if __name__ == "__main__":  # pragma: nocover
     ops.main(EupfK8SOperatorCharm)  # type: ignore

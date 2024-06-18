@@ -37,34 +37,10 @@ storage:
 
 config:
   options:
-    interfaces:
-      type: string
-      default: "[access]"
-      description: List of network interfaces handling N3 (GTP) & N6 (SGi) traffic. eUPF attaches XDP hook to every interface in this list.
     logging-level:
       type: string
       default: debug
       description: Logging level.
-    gnb-subnet:
-      type: string
-      default: 192.168.251.0/24
-      description: gNodeB subnet.
-    core-ip:
-      type: string
-      default: 192.168.250.3
-      description: IP address used by the UPF's Core interface.
-    core-gateway-ip:
-      type: string
-      default: 192.168.250.1
-      description: Gateway IP address to the Core Network.
-    access-ip:
-      type: string
-      default: 192.168.252.3
-      description: IP address used by the UPF's Access interface.
-    access-gateway-ip:
-      type: string
-      default: 192.168.252.1
-      description: Gateway IP address to the Access Network.
 
 requires:
   logging:

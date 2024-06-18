@@ -5,7 +5,7 @@
 
 import dataclasses
 import logging
-from ipaddress import IPv4Address, IPv4Network
+from ipaddress import IPv4Address
 
 import ops
 from pydantic import (
@@ -39,13 +39,7 @@ class UpfConfig(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
 
-    interfaces: str = "[access]"
     logging_level: str = "info"
-    gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
-    access_ip: IPv4Address = IPv4Address("192.168.252.3")
-    access_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
-    core_ip: IPv4Address = IPv4Address("192.168.250.3")
-    core_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     pfcp_node_id: IPv4Address = IPv4Address("127.0.0.1")
 
 
@@ -53,13 +47,7 @@ class UpfConfig(BaseModel):
 class CharmConfig:
     """Represent the configuration of the charm."""
 
-    interfaces: str
     logging_level: str
-    gnb_subnet: IPv4Network
-    access_ip: IPv4Address
-    access_gateway_ip: IPv4Address
-    core_ip: IPv4Address
-    core_gateway_ip: IPv4Address
     pfcp_node_id: IPv4Address
 
     def __init__(self, *, upf_config: UpfConfig):
@@ -68,13 +56,7 @@ class CharmConfig:
         Args:
             upf_config: UPF operator configuration.
         """
-        self.interfaces = upf_config.interfaces
         self.logging_level = upf_config.logging_level
-        self.gnb_subnet = upf_config.gnb_subnet
-        self.access_ip = upf_config.access_ip
-        self.access_gateway_ip = upf_config.access_gateway_ip
-        self.core_ip = upf_config.core_ip
-        self.core_gateway_ip = upf_config.core_gateway_ip
         self.pfcp_node_id = upf_config.pfcp_node_id
 
     @classmethod

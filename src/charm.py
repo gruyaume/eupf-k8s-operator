@@ -190,11 +190,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._pfcp_service.delete()
 
     def _ip_tables_rule_exists(self) -> bool:
-        """Return whether iptables rule already exists using the `--check` parameter.
-
-        Returns:
-            bool: Whether iptables rule exists
-        """
+        """Return whether iptables rule already exists using the `--check` parameter."""
         try:
             self._exec_command_in_workload(
                 command="iptables-legacy --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"  # noqa: E501

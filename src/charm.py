@@ -27,7 +27,7 @@ from ops import RemoveEvent
 from ops.charm import CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.model import ActiveStatus, ModelError, WaitingStatus
-from ops.pebble import ConnectionError, ExecError, Layer
+from ops.pebble import ConnectionError, ExecError, Layer, PathError
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,11 @@ class EupfK8SOperatorCharm(ops.CharmBase):
 
     def _add_routing_table(self) -> None:
         """Add a routing table named n6if with ID 1200."""
-        existing_rt_tables = self._container.pull(path="/etc/iproute2/rt_tables")
+        try:
+            existing_rt_tables = self._container.pull(path="/etc/iproute2/rt_tables")
+        except PathError:
+            logger.error("Failed to pull existing routing tables")
+            return
         existing_rt_tables_str = existing_rt_tables.read()
         if "1200 n6if" in existing_rt_tables_str:
             logger.info("Routing table already exists")

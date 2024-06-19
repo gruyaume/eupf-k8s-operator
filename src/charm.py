@@ -191,18 +191,25 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         except ExecError as e:
             logger.error("Failed to run iptables command: %s", e.stderr)
             return
+        except FileNotFoundError:
+            logger.error("Failed to execute command. File not found.")
+            return
         logger.info("Iptables command ran successfully")
 
     def _add_routing_table(self) -> None:
         """Add a routing table named n6if with ID 1200."""
-        try:
-            self._exec_command_in_workload(
-                command="""echo "1200 n6if" >> /etc/iproute2/rt_tables"""
-            )
-        except ExecError as e:
-            logger.error("Failed to add routing table: %s", e.stderr)
+        existing_rt_tables = self._container.pull(path="/etc/iproute2/rt_tables")
+        existing_rt_tables_str = existing_rt_tables.read()
+        if "1200 n6if" in existing_rt_tables_str:
+            logger.info("Routing table already exists")
             return
-        logger.info("Routing table added successfully")
+        concatenate = f"{existing_rt_tables_str}\n1200 n6if\n"
+        try:
+            self._container.push(path="/etc/iproute2/rt_tables", source=concatenate)
+            logger.info("Pushed routing table")
+        except ConnectionError:
+            logger.error("Failed to push routing table")
+            return
 
     def _create_ip_rule(self) -> None:
         """Add a rule to use the n6if table for traffic from the User Equipment subnet."""
@@ -213,6 +220,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         except ExecError as e:
             logger.error("Failed to add ip rule: %s", e.stderr)
             return
+        except FileNotFoundError:
+            logger.error("Failed to execute command. File not found.")
+            return
 
     def _create_default_route(self) -> None:
         """Add a default route in the n6if table via the N6 Gateway and N6 network interface."""
@@ -222,6 +232,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             )
         except ExecError as e:
             logger.error("Failed to add default route: %s", e.stderr)
+            return
+        except FileNotFoundError:
+            logger.error("Failed to execute command. File not found.")
             return
         logger.info("Default route added successfully")
 
@@ -234,21 +247,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             environment=environment,
         )
         return process.wait_output()
-
-    def _route_exists(self, dst: str, via: str | None) -> bool:
-        """Return whether the specified route exist."""
-        try:
-            stdout, _ = self._exec_command_in_workload(command="ip route show")
-        except ExecError as e:
-            logger.error("Failed retrieving routes: %s", e.stderr)
-            return False
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return False
-        for line in stdout.splitlines():
-            if f"{dst} via {via}" in line:
-                return True
-        return False
 
     def _eupf_service_is_running(self) -> bool:
         try:

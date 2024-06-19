@@ -19,7 +19,7 @@ def read_file(path: str) -> str:
 
 
 class TestCharm:
-
+    patcher_check_output = patch("charm.check_output")
     patcher_k8s_eupf_service = patch("charm.PFCPService")
     patcher_k8s_ebpf = patch("charm.EBPFVolume")
     patcher_k8s_get_upf_load_balancer_service_hostname = patch("charm.get_upf_load_balancer_service_hostname")
@@ -31,6 +31,7 @@ class TestCharm:
         TestCharm.patcher_k8s_ebpf.start()
         TestCharm.patcher_k8s_multus.start()
         TestCharm.patcher_k8s_get_upf_load_balancer_service_hostname.start()
+        self.mock_check_output = TestCharm.patcher_check_output.start()
 
     @pytest.fixture(autouse=True)
     def harness_fixture(self,  setUp):
@@ -74,6 +75,7 @@ class TestCharm:
         assert self.harness.model.unit.status == WaitingStatus('Waiting for UPF service to start')
 
     def test_given_config_file_not_created_when_config_changed_then_file_created(self, add_storage):
+        self.mock_check_output.return_value = b"1.1.1.1"
         root = self.harness.get_filesystem_root(container=self._container_name)
         self.harness.set_can_connect(container=self._container_name, val=True)
         self.harness.handle_exec(
@@ -89,6 +91,7 @@ class TestCharm:
         assert yaml.safe_load(existing_config) == yaml.safe_load(expected_config_file_content)
 
     def test_given_can_connect_when_config_changed_then_pebble_layer_is_added(self, add_storage):
+        self.mock_check_output.return_value = b"1.1.1.1"
         self.harness.set_can_connect(container=self._container_name, val=True)
         self.harness.handle_exec(
             container=self._container_name,

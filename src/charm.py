@@ -29,11 +29,10 @@ from ops import RemoveEvent
 from ops.charm import CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.model import ActiveStatus, ModelError, WaitingStatus
-from ops.pebble import ConnectionError, ExecError, Layer, PathError
+from ops.pebble import ConnectionError, ExecError, Layer
 
 logger = logging.getLogger(__name__)
 
-UE_SUBNET = "172.250.1.0/16"
 CONFIG_FILE_NAME = "config.yaml"
 CONFIG_PATH = "/etc/eupf"
 PFCP_PORT = 8805
@@ -169,10 +168,16 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             self._pfcp_service.create()
         if not self._ebpf_volume.is_created():
             self._ebpf_volume.create()
-        self._accept_forwarded_packets()
-        self._add_routing_table()
-        self._create_ip_rule()
-        self._create_default_route()
+        if not self._route_exists(
+            dst="default",
+            via=str(self._charm_config.n6_gateway_ip),
+        ):
+            self._create_default_route()
+        if not self._route_exists(
+            dst=str(self._charm_config.gnb_subnet),
+            via=str(self._charm_config.n3_gateway_ip),
+        ):
+            self._create_ran_route()
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
         self._update_fiveg_n4_relation_data()
@@ -199,51 +204,39 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             return
         logger.info("Iptables command ran successfully")
 
-    def _add_routing_table(self) -> None:
-        """Add a routing table named n6if with ID 1200."""
+    def _route_exists(self, dst: str, via: str | None) -> bool:
+        """Return whether the specified route exist."""
         try:
-            existing_rt_tables = self._container.pull(path="/etc/iproute2/rt_tables")
-        except PathError:
-            logger.error("Failed to pull existing routing tables")
-            return
-        existing_rt_tables_str = existing_rt_tables.read()
-        if "1200 n6if" in existing_rt_tables_str:
-            logger.info("Routing table already exists")
-            return
-        concatenate = f"{existing_rt_tables_str}\n1200 n6if\n"
-        try:
-            self._container.push(path="/etc/iproute2/rt_tables", source=concatenate)
-            logger.info("Pushed routing table")
-        except ConnectionError:
-            logger.error("Failed to push routing table")
-            return
-
-    def _create_ip_rule(self) -> None:
-        """Add a rule to use the n6if table for traffic from the User Equipment subnet."""
-        try:
-            self._exec_command_in_workload(
-                command=f"ip rule add from {UE_SUBNET} table n6if"
-            )
+            stdout, stderr = self._exec_command_in_workload(command="ip route show")
         except ExecError as e:
-            logger.error("Failed to add ip rule: %s", e.stderr)
-            return
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return
+            logger.error("Failed retrieving routes: %s", e.stderr)
+            return False
+        for line in stdout.splitlines():
+            if f"{dst} via {via}" in line:
+                return True
+        return False
 
     def _create_default_route(self) -> None:
-        """Add a default route in the n6if table via the N6 Gateway and N6 network interface."""
+        """Create ip route towards core network."""
         try:
             self._exec_command_in_workload(
-                command=f"ip route add default via {self._charm_config.n6_gateway_ip} dev {N6_INTERFACE_NAME} table n6if"
+                command=f"ip route replace default via {self._charm_config.n6_gateway_ip} metric 110"
             )
         except ExecError as e:
-            logger.error("Failed to add default route: %s", e.stderr)
+            logger.error("Failed to create core network route: %s", e.stderr)
             return
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
+        logger.info("Default core network route created")
+
+    def _create_ran_route(self) -> None:
+        """Create ip route towards gnb-subnet."""
+        try:
+            self._exec_command_in_workload(
+                command=f"ip route replace {self._charm_config.gnb_subnet} via {self._charm_config.n3_gateway_ip}"
+            )
+        except ExecError as e:
+            logger.error("Failed to create route to gnb-subnet: %s", e.stderr)
             return
-        logger.info("Default route added successfully")
+        logger.info("Route to gnb-subnet created")
 
     def _exec_command_in_workload(
         self, command: str, timeout: Optional[int] = 30, environment: Optional[dict] = None

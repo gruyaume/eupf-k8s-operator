@@ -190,20 +190,6 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         if self._pfcp_service.is_created():
             self._pfcp_service.delete()
 
-    def _accept_forwarded_packets(self) -> None:
-        """Configure packet filtering rules to accept all forwarded packets."""
-        try:
-            self._exec_command_in_workload(
-                command="iptables-legacy -A FORWARD -j ACCEPT"
-            )
-        except ExecError as e:
-            logger.error("Failed to run iptables command: %s", e.stderr)
-            return
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return
-        logger.info("Iptables command ran successfully")
-
     def _route_exists(self, dst: str, via: str | None) -> bool:
         """Return whether the specified route exist."""
         try:
@@ -287,7 +273,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """
         pfcp_address = get_pod_ip()
         content = render_upf_config_file(
-            interfaces=self._charm_config.interfaces,
+            interfaces=f"[{N3_INTERFACE_NAME},{N6_INTERFACE_NAME}]",
             logging_level=self._charm_config.logging_level,
             pfcp_address=pfcp_address,
             pfcp_port=PFCP_PORT,

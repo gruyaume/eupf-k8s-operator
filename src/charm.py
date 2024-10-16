@@ -11,7 +11,6 @@ from typing import List, Optional, Tuple
 
 import ops
 import yaml
-from charm_config import CharmConfig, CharmConfigInvalidError
 from charms.kubernetes_charm_libraries.v0.multus import (
     KubernetesMultusCharmLib,
     NetworkAnnotation,
@@ -23,13 +22,14 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (
 )
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from jinja2 import Environment, FileSystemLoader
-from kubernetes_eupf import EBPFVolume, PFCPService, get_upf_load_balancer_service_hostname
 from lightkube.models.meta_v1 import ObjectMeta
 from ops import RemoveEvent
-from ops.charm import CharmEvents, CollectStatusEvent
-from ops.framework import EventBase, EventSource
+from ops.charm import CollectStatusEvent
 from ops.model import ActiveStatus, ModelError, WaitingStatus
 from ops.pebble import ConnectionError, ExecError, Layer
+
+from charm_config import CharmConfig, CharmConfigInvalidError
+from kubernetes_eupf import EBPFVolume, PFCPService, get_upf_load_balancer_service_hostname
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,6 @@ def render_upf_config_file(
     pfcp_port: int,
     n3_address: str,
     metrics_port: int,
-
 ) -> str:
     """Render the configuration file for the 5G UPF service.
 
@@ -77,20 +76,9 @@ def render_upf_config_file(
     )
     return content
 
-class NadConfigChangedEvent(EventBase):
-    """Event triggered when an existing network attachment definition is changed."""
-
-
-class UpfOperatorCharmEvents(CharmEvents):
-    """Kubernetes UPF operator charm events."""
-
-    nad_config_changed = EventSource(NadConfigChangedEvent)
-
 
 class EupfK8SOperatorCharm(ops.CharmBase):
     """Charm the service."""
-
-    on = UpfOperatorCharmEvents()  # type: ignore[reportAssignmentType]
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -104,12 +92,13 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         except CharmConfigInvalidError:
             return
         self._kubernetes_multus = KubernetesMultusCharmLib(
-            charm=self,
+            namespace=self.model.name,
+            statefulset_name=self.model.app.name,
             container_name=self._container_name,
+            pod_name=self._pod_name,
             cap_net_admin=True,
-            network_annotations_func=self._generate_network_annotations,
-            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
-            refresh_event=self.on.nad_config_changed,
+            network_annotations=self._generate_network_annotations(),
+            network_attachment_definitions=self._network_attachment_definitions_from_config(),
             privileged=True,
         )
         self._pfcp_service = PFCPService(
@@ -134,13 +123,14 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         )
         self.framework.observe(self.on.config_changed, self._configure)
         self.framework.observe(self.on.update_status, self._configure)
-        self.framework.observe(
-            self.fiveg_n4_provider.on.fiveg_n4_request, self._configure
-        )
+        self.framework.observe(self.fiveg_n4_provider.on.fiveg_n4_request, self._configure)
         self.framework.observe(self.on.remove, self._on_remove)
 
     def _on_collect_status(self, event: CollectStatusEvent):
         """Collect the status of the unit."""
+        if not self._kubernetes_multus.is_ready():
+            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
+            return
         if not self._upf_config_file_is_written():
             event.add_status(WaitingStatus("Waiting for UPF configuration file"))
             return
@@ -162,12 +152,37 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             logger.info("Cannot connect to the container")
             return
         if not self._kubernetes_multus.multus_is_available():
+            logger.warning("Multus is not available")
             return
-        self.on.nad_config_changed.emit()
+        self._kubernetes_multus.configure()
+        self._configure_ebpf_volume()
+        self._configure_routes()
+        self._enable_ip_forwarding()
+        restart = self._generate_config_file()
+        self._configure_pebble(restart=restart)
+        self._update_fiveg_n4_relation_data()
+
+    @property
+    def _pod_name(self) -> str:
+        return "-".join(self.model.unit.name.rsplit("/", 1))
+
+    def _on_remove(self, _: RemoveEvent) -> None:
+        """Handle the removal of the charm.
+
+        Delete the PFCP service.
+        """
+        if self._pfcp_service.is_created():
+            self._pfcp_service.delete()
+
+    def _configure_pfcp_service(self):
         if not self._pfcp_service.is_created():
             self._pfcp_service.create()
+
+    def _configure_ebpf_volume(self):
         if not self._ebpf_volume.is_created():
             self._ebpf_volume.create()
+
+    def _configure_routes(self):
         if not self._route_exists(
             dst="default",
             via=str(self._charm_config.n6_gateway_ip),
@@ -178,31 +193,13 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             via=str(self._charm_config.n3_gateway_ip),
         ):
             self._create_ran_route()
-        restart = self._generate_config_file()
-        self._configure_pebble(restart=restart)
-        self._update_fiveg_n4_relation_data()
 
-    def _on_remove(self, _: RemoveEvent) -> None:
-        """Handle the removal of the charm.
-
-        Delete the PFCP service.
-        """
-        if self._pfcp_service.is_created():
-            self._pfcp_service.delete()
-
-    def _accept_forwarded_packets(self) -> None:
-        """Configure packet filtering rules to accept all forwarded packets."""
-        try:
-            self._exec_command_in_workload(
-                command="iptables-legacy -A FORWARD -j ACCEPT"
-            )
-        except ExecError as e:
-            logger.error("Failed to run iptables command: %s", e.stderr)
+    def _enable_ip_forwarding(self):
+        _, stderr = self._exec_command_in_workload(command="sysctl -w net.ipv4.ip_forward=1")
+        if stderr:
+            logger.error("Failed to enable ip forwarding: %s", stderr)
             return
-        except FileNotFoundError:
-            logger.error("Failed to execute command. File not found.")
-            return
-        logger.info("Iptables command ran successfully")
+        logger.info("IP forwarding enabled")
 
     def _route_exists(self, dst: str, via: str | None) -> bool:
         """Return whether the specified route exist."""
@@ -314,7 +311,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             )
 
     def _get_n4_upf_hostname(self) -> str:
-        if lb_hostname := get_upf_load_balancer_service_hostname(namespace=self.model.name, app_name=self.model.app.name):
+        if lb_hostname := get_upf_load_balancer_service_hostname(
+            namespace=self.model.name, app_name=self.model.app.name
+        ):
             return lb_hostname
         return self._upf_hostname
 
@@ -335,9 +334,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             return
         if plan.services != self._pebble_layer.services:
             try:
-                self._container.add_layer(
-                    self._container_name, self._pebble_layer, combine=True
-                )
+                self._container.add_layer(self._container_name, self._pebble_layer, combine=True)
             except ConnectionError:
                 logger.info("Failed to add new layer: Connection error")
                 return
@@ -382,7 +379,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         return [n3_network_annotation, n6_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
-        n3_nad_config= {
+        n3_nad_config = {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
@@ -392,7 +389,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             },
             "capabilities": {"mac": True},
             "type": "bridge",
-            "bridge": N3_INTERFACE_BRIDGE_NAME
+            "bridge": N3_INTERFACE_BRIDGE_NAME,
         }
         n6_nad_config = {
             "cniVersion": "0.3.1",
@@ -404,23 +401,15 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             },
             "capabilities": {"mac": True},
             "type": "bridge",
-            "bridge": N6_INTERFACE_BRIDGE_NAME
+            "bridge": N6_INTERFACE_BRIDGE_NAME,
         }
 
         n3_nad = NetworkAttachmentDefinition(
-            metadata=ObjectMeta(
-                name=(
-                    N3_NETWORK_ATTACHMENT_DEFINITION_NAME
-                )
-            ),
+            metadata=ObjectMeta(name=(N3_NETWORK_ATTACHMENT_DEFINITION_NAME)),
             spec={"config": json.dumps(n3_nad_config)},
         )
         n6_nad = NetworkAttachmentDefinition(
-            metadata=ObjectMeta(
-                name=(
-                    N6_NETWORK_ATTACHMENT_DEFINITION_NAME
-                )
-            ),
+            metadata=ObjectMeta(name=(N6_NETWORK_ATTACHMENT_DEFINITION_NAME)),
             spec={"config": json.dumps(n6_nad_config)},
         )
         return [n3_nad, n6_nad]

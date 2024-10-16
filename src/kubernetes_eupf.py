@@ -3,7 +3,6 @@
 
 """PFCP service for the UPF."""
 
-
 import logging
 from typing import Iterable, Optional
 
@@ -29,9 +28,7 @@ logger = logging.getLogger(__name__)
 def get_upf_load_balancer_service_hostname(namespace: str, app_name: str) -> Optional[str]:
     """Get the hostname of the UPF service."""
     client = Client()  # type: ignore[reportArgumentType]
-    service = client.get(
-        Service, name=f"{app_name}-external", namespace=namespace
-    )
+    service = client.get(Service, name=f"{app_name}-external", namespace=namespace)
     try:
         return service.status.loadBalancer.ingress[0].hostname  # type: ignore[reportAttributeAccessIssue]
     except (AttributeError, TypeError):
@@ -42,8 +39,10 @@ def get_upf_load_balancer_service_hostname(namespace: str, app_name: str) -> Opt
         )
         return None
 
+
 class PFCPService:
     """PFCP service for the UPF."""
+
     def __init__(self, namespace: str, app_name: str, pfcp_port: int):
         self.client = Client()  # type: ignore[reportArgumentType]
         self.namespace = namespace
@@ -102,6 +101,7 @@ class PFCPService:
 
 class EBPFVolume:
     """eBPF volume for the UPF."""
+
     def __init__(self, namespace: str, container_name: str, app_name: str, unit_name: str):
         self.client = Client()  # type: ignore[reportArgumentType]
         self.namespace = namespace
@@ -151,13 +151,11 @@ class EBPFVolume:
             if e.status.reason == "Unauthorized":
                 logger.debug("kube-apiserver not ready yet")
             else:
-                raise RuntimeError(
-                    f"Could not get statefulset `{self.app_name}`"
-                )
+                raise RuntimeError(f"Could not get statefulset `{self.app_name}`")
             logger.info("Statefulset `%s` not found", self.app_name)
             return False
 
-        contains_volume =  self._statefulset_contains_requested_volume(
+        contains_volume = self._statefulset_contains_requested_volume(
             statefulset_spec=statefulset.spec,  # type: ignore[attr-defined]
             requested_volume=self.requested_volume,
         )
@@ -217,9 +215,7 @@ class EBPFVolume:
         try:
             self.client.replace(obj=statefulset)
         except ApiError:
-            raise RuntimeError(
-                f"Could not replace statefulset `{self.app_name}`"
-            )
+            raise RuntimeError(f"Could not replace statefulset `{self.app_name}`")
         logger.info("Replaced `%s` statefulset", self.app_name)
 
     @property

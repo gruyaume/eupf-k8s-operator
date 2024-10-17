@@ -15,7 +15,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     Args:
       parser: The pytest command line parser.
     """
-    parser.addoption("--charm_path", action="store", default=None, help="Path to the charm under test")
+    parser.addoption(
+        "--charm_path", action="store", default=None, help="Path to the charm under test"
+    )
+
 
 def pytest_configure(config: pytest.Config) -> None:
     """Validate the options provided by the user.

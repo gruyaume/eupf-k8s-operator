@@ -102,8 +102,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             privileged=True,
         )
         self._pfcp_service = PFCPService(
-            namespace=self.model.name,
-            app_name=self.model.app.name,
+            namespace=self._namespace,
+            service_name=f"{self.app.name}-external",
+            app_name=self.app.name,
             pfcp_port=PFCP_PORT,
         )
         self._ebpf_volume = EBPFVolume(
@@ -151,6 +152,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         if not self._container.can_connect():
             logger.info("Cannot connect to the container")
             return
+        self._configure_pfcp_service()
         if not self._kubernetes_multus.multus_is_available():
             logger.warning("Multus is not available")
             return
@@ -161,6 +163,11 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         restart = self._generate_config_file()
         self._configure_pebble(restart=restart)
         self._update_fiveg_n4_relation_data()
+
+    @property
+    def _namespace(self) -> str:
+        """Return the k8s namespace."""
+        return self.model.name
 
     @property
     def _pod_name(self) -> str:

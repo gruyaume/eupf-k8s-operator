@@ -43,23 +43,26 @@ def get_upf_load_balancer_service_hostname(namespace: str, app_name: str) -> Opt
 class PFCPService:
     """PFCP service for the UPF."""
 
-    def __init__(self, namespace: str, app_name: str, pfcp_port: int):
+    def __init__(self, namespace: str, service_name: str, app_name: str, pfcp_port: int):
         self.client = Client()  # type: ignore[reportArgumentType]
         self.namespace = namespace
+        self.service_name = service_name
         self.app_name = app_name
         self.pfcp_port = pfcp_port
 
     def is_created(self) -> bool:
         """Check if the external UPF service is created."""
         try:
-            service = self.client.get(
+            self.client.get(
                 Service,
                 namespace=self.namespace,
-                name=f"{self.app_name}-external",
+                name=self.service_name,
             )
-        except ApiError:
-            return False
-        return service is not None
+            return True
+        except HTTPStatusError as status:
+            if status.response.status_code == 404:
+                return False
+        return False
 
     def create(self) -> None:
         """Create the external UPF service."""
@@ -68,7 +71,7 @@ class PFCPService:
             kind="Service",
             metadata=ObjectMeta(
                 namespace=self.namespace,
-                name=f"{self.app_name}-external",
+                name=self.service_name,
                 labels={
                     "app.kubernetes.io/name": self.app_name,
                 },
@@ -91,7 +94,7 @@ class PFCPService:
         try:
             self.client.delete(
                 Service,
-                name=f"{self.app_name}-external",
+                name=self.service_name,
                 namespace=self.namespace,
             )
             logger.info("Deleted external UPF service")

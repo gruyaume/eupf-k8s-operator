@@ -4,3 +4,5 @@ metrics_address: :9090
 n3_address: 192.168.252.3
 logging_level: debug
 pfcp_node_id: 1.1.1.1
+feature_ftup: true
+teid_pool: 65535

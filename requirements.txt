@@ -30,7 +30,7 @@ iniconfig==2.0.0
     # via pytest
 jinja2==3.1.4
     # via -r requirements.in
-lightkube==0.15.4
+lightkube==0.15.5
     # via
     #   -r requirements.in
     #   cosl

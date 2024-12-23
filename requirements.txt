@@ -14,7 +14,7 @@ certifi==2024.8.30
     #   httpx
 click==8.1.7
     # via typer
-cosl==0.0.42
+cosl==0.0.50
     # via -r requirements.in
 h11==0.14.0
     # via httpcore
@@ -28,19 +28,19 @@ idna==3.10
     #   httpx
 iniconfig==2.0.0
     # via pytest
-jinja2==3.1.4
+jinja2==3.1.5
     # via -r requirements.in
-lightkube==0.15.5
+lightkube==0.16.0
     # via
     #   -r requirements.in
     #   cosl
-lightkube-models==1.31.1.8
+lightkube-models==1.32.0.8
     # via
     #   -r requirements.in
     #   lightkube
 markupsafe==3.0.1
     # via jinja2
-ops==2.17.0
+ops==2.17.1
     # via
     #   -r requirements.in
     #   cosl
@@ -51,16 +51,16 @@ packaging==24.1
     # via pytest
 pluggy==1.5.0
     # via pytest
-pydantic==2.9.2
+pydantic==2.10.4
     # via
     #   -r requirements.in
     #   cosl
     #   pytest-interface-tester
-pydantic-core==2.23.4
+pydantic-core==2.27.2
     # via pydantic
-pytest==8.3.3
+pytest==8.3.4
     # via pytest-interface-tester
-pytest-interface-tester==3.2.0
+pytest-interface-tester==3.3.0
     # via -r requirements.in
 pyyaml==6.0.2
     # via

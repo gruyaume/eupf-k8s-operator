@@ -6,3 +6,4 @@ logging_level: debug
 pfcp_node_id: 1.1.1.1
 feature_ftup: true
 teid_pool: 65535
+xdp_attach_mode: generic

@@ -37,6 +37,18 @@ storage:
 
 config:
   options:
+    cni-type:
+      type: string
+      default: bridge
+      description: |
+        Multus CNI plugin to use for the interfaces.
+        Allowed values are `bridge`, `macvlan`.
+    xdp_attach_mode:
+      type: string
+      default: "generic"
+      description: |
+        XDP attach mode.
+        Allowed values are `generic`, `native`.
     interfaces:
       type: string
       default: "[n3,n6]"
@@ -49,6 +61,16 @@ config:
       type: string
       default: 192.168.251.0/24
       description: gNodeB subnet.
+    n3-host-interface:
+      type: string
+      description: |
+        Interface on the host to use for the Access Network (n3).
+        If set, the eUPF charm will create a Network Attachment Definition (NAD) of type macvlan.
+    n6-host-interface:
+      type: string
+      description: |
+        Interface on the host to use for the Core Network (n6).
+        If set, the eUPF charm will create a Network Attachment Definition (NAD) of type macvlan.
     n6-ip:
       type: string
       default: 192.168.250.3

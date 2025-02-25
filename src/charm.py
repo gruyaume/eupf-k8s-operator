@@ -7,7 +7,7 @@ import json
 import logging
 from ipaddress import IPv4Address
 from subprocess import check_output
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import ops
 import yaml
@@ -28,7 +28,7 @@ from ops.charm import CollectStatusEvent
 from ops.model import ActiveStatus, ModelError, WaitingStatus
 from ops.pebble import ConnectionError, ExecError, Layer
 
-from charm_config import CharmConfig, CharmConfigInvalidError
+from charm_config import CharmConfig, CharmConfigInvalidError, CNIType
 from kubernetes_eupf import EBPFVolume, PFCPService, get_upf_load_balancer_service_hostname
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,7 @@ def render_upf_config_file(
     pfcp_port: int,
     n3_address: str,
     metrics_port: int,
+    xdp_attach_mode: str,
 ) -> str:
     """Render the configuration file for the 5G UPF service.
 
@@ -63,6 +64,7 @@ def render_upf_config_file(
         pfcp_port: The PFCP port.
         n3_address: The N3 address.
         metrics_port: The port for the metrics.
+        xdp_attach_mode: The XDP attach mode.
     """
     jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
     template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
@@ -73,6 +75,7 @@ def render_upf_config_file(
         n3_address=n3_address,
         metrics_port=metrics_port,
         pfcp_address=pfcp_address,
+        xdp_attach_mode=xdp_attach_mode,
     )
     return content
 
@@ -297,6 +300,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             pfcp_port=PFCP_PORT,
             n3_address=str(self._charm_config.n3_ip),
             metrics_port=PROMETHEUS_PORT,
+            xdp_attach_mode=self._charm_config.xdp_attach_mode,
         )
         if not self._upf_config_file_is_written() or not self._upf_config_file_content_matches(
             content=content
@@ -386,40 +390,107 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         return [n3_network_annotation, n6_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
-        n3_nad_config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "addresses": [
-                    {"address": f"{self._charm_config.n3_ip}/24"},
-                ],
-            },
-            "capabilities": {"mac": True},
-            "type": "bridge",
-            "bridge": N3_INTERFACE_BRIDGE_NAME,
-        }
-        n6_nad_config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "addresses": [
-                    {"address": f"{self._charm_config.n6_ip}/24"},
-                ],
-            },
-            "capabilities": {"mac": True},
-            "type": "bridge",
-            "bridge": N6_INTERFACE_BRIDGE_NAME,
-        }
+        """Return list of Multus NetworkAttachmentDefinitions to be created based on config.
 
-        n3_nad = NetworkAttachmentDefinition(
-            metadata=ObjectMeta(name=(N3_NETWORK_ATTACHMENT_DEFINITION_NAME)),
-            spec={"config": json.dumps(n3_nad_config)},
+        Returns:
+            network_attachment_definitions: list[NetworkAttachmentDefinition]
+        """
+        access_nad = self._create_nad_from_config(N3_INTERFACE_NAME)
+        core_nad = self._create_nad_from_config(N6_INTERFACE_NAME)
+        return [access_nad, core_nad]
+
+    def _create_nad_from_config(self, interface_name: str) -> NetworkAttachmentDefinition:
+        """Return a NetworkAttachmentDefinition for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to create the NetworkAttachmentDefinition from
+
+        Returns:
+            NetworkAttachmentDefinition: NetworkAttachmentDefinition object
+        """
+        nad_config = self._get_nad_base_config()
+
+        nad_config["ipam"].update(
+            {"addresses": [{"address": self._get_network_ip_config(interface_name)}]}
         )
-        n6_nad = NetworkAttachmentDefinition(
-            metadata=ObjectMeta(name=(N6_NETWORK_ATTACHMENT_DEFINITION_NAME)),
-            spec={"config": json.dumps(n6_nad_config)},
+
+        cni_type = self._charm_config.cni_type
+
+        # host interface name is used only by macvlan and host-device
+        if host_interface := self._get_interface_config(interface_name):
+            if cni_type == CNIType.macvlan:
+                nad_config.update({"master": host_interface})
+        else:
+            nad_config.update(
+                {
+                    "bridge": (
+                        N3_INTERFACE_BRIDGE_NAME
+                        if interface_name == N3_INTERFACE_NAME
+                        else N6_INTERFACE_BRIDGE_NAME
+                    )
+                }
+            )
+        nad_config.update({"type": cni_type})
+
+        return NetworkAttachmentDefinition(
+            metadata=ObjectMeta(
+                name=(
+                    N6_NETWORK_ATTACHMENT_DEFINITION_NAME
+                    if interface_name == N6_INTERFACE_NAME
+                    else N3_NETWORK_ATTACHMENT_DEFINITION_NAME
+                )
+            ),
+            spec={"config": json.dumps(nad_config)},
         )
-        return [n3_nad, n6_nad]
+
+    def _get_nad_base_config(self) -> Dict[Any, Any]:
+        """Get the base NetworkAttachmentDefinition.
+
+        This config is extended according to charm config.
+
+        Returns:
+            config (dict): Base NAD config
+        """
+        base_nad = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+            },
+            "capabilities": {"mac": True},
+        }
+        return base_nad
+
+    def _get_interface_config(self, interface_name: str) -> Optional[str]:
+        """Retrieve the interface on the host to use for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to retrieve the interface host from
+
+        Returns:
+            Optional[str]: The interface on the host to use
+        """
+        if interface_name == N3_INTERFACE_NAME:
+            return self._charm_config.n3_interface
+        elif interface_name == N6_INTERFACE_NAME:
+            return self._charm_config.n6_interface
+        else:
+            return None
+
+    def _get_network_ip_config(self, interface_name: str) -> Optional[str]:
+        """Retrieve the network IP address to use for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to retrieve the network IP address from
+
+        Returns:
+            Optional[str]: The network IP address to use
+        """
+        if interface_name == N3_INTERFACE_NAME:
+            return str(self._charm_config.n3_ip)
+        elif interface_name == N6_INTERFACE_NAME:
+            return str(self._charm_config.n6_ip)
+        else:
+            return None
 
 
 def get_pod_ip() -> str:

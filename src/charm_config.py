@@ -5,16 +5,38 @@
 
 import dataclasses
 import logging
+from enum import Enum
 from ipaddress import IPv4Address, IPv4Network
+from typing import Optional
 
 import ops
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
+    StrictStr,
     ValidationError,
 )
 
 logger = logging.getLogger(__name__)
+
+
+class CNIType(str, Enum):
+    """Class to define available CNI types for UPF operator."""
+
+    bridge = "bridge"
+    macvlan = "macvlan"
+
+
+class XDPAttachMode(str, Enum):
+    """Class to define available XDP attach modes for UPF operator."""
+
+    native = "native"
+    generic = "generic"
+
+    def __str__(self) -> str:
+        """Return the string representation of the XDPAttachMode."""
+        return self.value
 
 
 class CharmConfigInvalidError(Exception):
@@ -39,9 +61,13 @@ class UpfConfig(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
 
-    interfaces: str = "[n3]"
+    cni_type: CNIType = CNIType.bridge
+    xdp_attach_mode: XDPAttachMode = XDPAttachMode.generic
+    interfaces: str = "[n3,n6]"
     logging_level: str = "info"
     gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
+    n3_interface: Optional[StrictStr] = Field(default="")
+    n6_interface: Optional[StrictStr] = Field(default="")
     n3_ip: IPv4Address = IPv4Address("192.168.252.3")
     n3_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
     n6_ip: IPv4Address = IPv4Address("192.168.250.3")
@@ -53,9 +79,13 @@ class UpfConfig(BaseModel):
 class CharmConfig:
     """Represent the configuration of the charm."""
 
+    cni_type: CNIType
+    xdp_attach_mode: XDPAttachMode
     interfaces: str
     logging_level: str
     gnb_subnet: IPv4Network
+    n3_interface: Optional[StrictStr]
+    n6_interface: Optional[StrictStr]
     n3_ip: IPv4Address
     n3_gateway_ip: IPv4Address
     n6_ip: IPv4Address
@@ -68,9 +98,13 @@ class CharmConfig:
         Args:
             upf_config: UPF operator configuration.
         """
+        self.cni_type = upf_config.cni_type
+        self.xdp_attach_mode = upf_config.xdp_attach_mode
         self.interfaces = upf_config.interfaces
         self.logging_level = upf_config.logging_level
         self.gnb_subnet = upf_config.gnb_subnet
+        self.n3_interface = upf_config.n3_interface
+        self.n6_interface = upf_config.n6_interface
         self.n3_ip = upf_config.n3_ip
         self.n3_gateway_ip = upf_config.n3_gateway_ip
         self.n6_ip = upf_config.n6_ip

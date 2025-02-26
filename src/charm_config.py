@@ -72,7 +72,7 @@ class UpfConfig(BaseModel):
     n3_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
     n6_ip: str = Field(default="192.168.250.3/24")
     n6_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
-    pfcp_node_id: IPv4Address = IPv4Address("127.0.0.1")
+    pfcp_node_id: str = Field(default="")
     external_hostname: Optional[StrictStr] = Field(default="")
 
 
@@ -91,7 +91,7 @@ class CharmConfig:
     n3_gateway_ip: IPv4Address
     n6_ip: str
     n6_gateway_ip: IPv4Address
-    pfcp_node_id: IPv4Address
+    pfcp_node_id: str
     external_hostname: Optional[StrictStr]
 
     def __init__(self, *, upf_config: UpfConfig):

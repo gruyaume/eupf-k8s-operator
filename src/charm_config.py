@@ -73,6 +73,7 @@ class UpfConfig(BaseModel):
     n6_ip: IPv4Address = IPv4Address("192.168.250.3")
     n6_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     pfcp_node_id: IPv4Address = IPv4Address("127.0.0.1")
+    external_hostname: Optional[StrictStr] = Field(default="")
 
 
 @dataclasses.dataclass
@@ -91,6 +92,7 @@ class CharmConfig:
     n6_ip: IPv4Address
     n6_gateway_ip: IPv4Address
     pfcp_node_id: IPv4Address
+    external_hostname: Optional[StrictStr]
 
     def __init__(self, *, upf_config: UpfConfig):
         """Initialize a new instance of the CharmConfig class.
@@ -110,6 +112,7 @@ class CharmConfig:
         self.n6_ip = upf_config.n6_ip
         self.n6_gateway_ip = upf_config.n6_gateway_ip
         self.pfcp_node_id = upf_config.pfcp_node_id
+        self.external_hostname = upf_config.external_hostname
 
     @classmethod
     def from_charm(

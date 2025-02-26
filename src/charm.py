@@ -25,7 +25,7 @@ from jinja2 import Environment, FileSystemLoader
 from lightkube.models.meta_v1 import ObjectMeta
 from ops import RemoveEvent
 from ops.charm import CollectStatusEvent
-from ops.model import ActiveStatus, ModelError, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, ModelError, WaitingStatus
 from ops.pebble import ConnectionError, ExecError, Layer
 
 from charm_config import CharmConfig, CharmConfigInvalidError, CNIType
@@ -132,6 +132,20 @@ class EupfK8SOperatorCharm(ops.CharmBase):
 
     def _on_collect_status(self, event: CollectStatusEvent):
         """Collect the status of the unit."""
+        if not self.unit.is_leader():
+            event.add_status(BlockedStatus("Scaling is not implemented for this charm"))
+            logger.info("Scaling is not implemented for this charm")
+            return
+        try:
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
+        except CharmConfigInvalidError as exc:
+            event.add_status(BlockedStatus(exc.msg))
+            logger.info(exc.msg)
+            return
+        if not self._kubernetes_multus.multus_is_available():
+            event.add_status(BlockedStatus("Multus is not installed or enabled"))
+            logger.info("Multus is not installed or enabled")
+            return
         if not self._kubernetes_multus.is_ready():
             event.add_status(WaitingStatus("Waiting for Multus to be ready"))
             return
@@ -322,7 +336,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             )
 
     def _get_n4_upf_hostname(self) -> str:
-        if lb_hostname := get_upf_load_balancer_service_hostname(
+        if configured_hostname := self._charm_config.external_hostname:
+            return configured_hostname
+        elif lb_hostname := get_upf_load_balancer_service_hostname(
             namespace=self.model.name, app_name=self.model.app.name
         ):
             return lb_hostname

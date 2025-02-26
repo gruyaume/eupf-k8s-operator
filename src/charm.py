@@ -312,7 +312,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             logging_level=self._charm_config.logging_level,
             pfcp_address=pfcp_address,
             pfcp_port=PFCP_PORT,
-            n3_address=str(self._charm_config.n3_ip),
+            n3_address=self._charm_config.n3_ip.split("/")[0] if self._charm_config.n3_ip else "",
             metrics_port=PROMETHEUS_PORT,
             xdp_attach_mode=self._charm_config.xdp_attach_mode,
         )

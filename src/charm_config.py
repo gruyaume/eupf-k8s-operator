@@ -68,9 +68,9 @@ class UpfConfig(BaseModel):
     gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
     n3_interface: Optional[StrictStr] = Field(default="")
     n6_interface: Optional[StrictStr] = Field(default="")
-    n3_ip: IPv4Address = IPv4Address("192.168.252.3")
+    n3_ip: str = Field(default="192.168.252.3/24")
     n3_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
-    n6_ip: IPv4Address = IPv4Address("192.168.250.3")
+    n6_ip: str = Field(default="192.168.250.3/24")
     n6_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     pfcp_node_id: IPv4Address = IPv4Address("127.0.0.1")
     external_hostname: Optional[StrictStr] = Field(default="")
@@ -87,9 +87,9 @@ class CharmConfig:
     gnb_subnet: IPv4Network
     n3_interface: Optional[StrictStr]
     n6_interface: Optional[StrictStr]
-    n3_ip: IPv4Address
+    n3_ip: str
     n3_gateway_ip: IPv4Address
-    n6_ip: IPv4Address
+    n6_ip: str
     n6_gateway_ip: IPv4Address
     pfcp_node_id: IPv4Address
     external_hostname: Optional[StrictStr]

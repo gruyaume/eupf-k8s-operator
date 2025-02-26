@@ -28,7 +28,7 @@ resources:
   eupf-image:
     type: oci-image
     description: OCI image for eUPF
-    upstream-source: ghcr.io/gruyaume/eupf:0.6.4
+    upstream-source: ghcr.io/gruyaume/eupf:0.7.0
 
 storage:
   config:
@@ -87,6 +87,11 @@ config:
       type: string
       default: 192.168.252.1
       description: Gateway IP address to the Access Network.
+    pfcp-node-id:
+      type: string
+      description: |
+        PFCP node ID.
+        If not provided, it will default to the PFCP address.
     external-hostname:
       type: string
       description: |

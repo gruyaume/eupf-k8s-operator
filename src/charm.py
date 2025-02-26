@@ -54,6 +54,7 @@ def render_upf_config_file(
     n3_address: str,
     metrics_port: int,
     xdp_attach_mode: str,
+    pfcp_node_id: str,
 ) -> str:
     """Render the configuration file for the 5G UPF service.
 
@@ -65,6 +66,7 @@ def render_upf_config_file(
         n3_address: The N3 address.
         metrics_port: The port for the metrics.
         xdp_attach_mode: The XDP attach mode.
+        pfcp_node_id: The PFCP node ID.
     """
     jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
     template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
@@ -76,6 +78,7 @@ def render_upf_config_file(
         metrics_port=metrics_port,
         pfcp_address=pfcp_address,
         xdp_attach_mode=xdp_attach_mode,
+        pfcp_node_id=pfcp_node_id,
     )
     return content
 
@@ -315,6 +318,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             n3_address=self._charm_config.n3_ip.split("/")[0] if self._charm_config.n3_ip else "",
             metrics_port=PROMETHEUS_PORT,
             xdp_attach_mode=self._charm_config.xdp_attach_mode,
+            pfcp_node_id=self._get_pfcp_node_id(),
         )
         if not self._upf_config_file_is_written() or not self._upf_config_file_content_matches(
             content=content
@@ -507,6 +511,14 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             return str(self._charm_config.n6_ip)
         else:
             return None
+
+    def _get_pfcp_node_id(self) -> str:
+        """Return the PFCP node ID."""
+        return (
+            str(self._charm_config.pfcp_node_id)
+            if self._charm_config.pfcp_node_id
+            else get_pod_ip()
+        )
 
 
 def get_pod_ip() -> str:

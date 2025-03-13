@@ -81,7 +81,7 @@ config:
       description: Gateway IP address to the Core Network.
     n3-ip:
       type: string
-      default: 192.168.252.3
+      default: 192.168.252.3/24
       description: IP address used by the UPF's Access interface.
     n3-gateway-ip:
       type: string

@@ -1,0 +1,48 @@
+name: Integration tests
+
+on:
+  workflow_call:
+    secrets:
+      GHCR_TOKEN:
+        required: true
+    inputs:
+      branch-name:
+        description: Name of the branch to checkout
+        required: false
+        type: string
+        default: ${{ github.ref }}
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch-name }}
+
+      - name: Install Canonical K8s and Multus
+        run: |
+          sudo rm -rf /run/containerd
+          sudo snap install k8s --classic --channel=1.32-classic/stable
+          sudo k8s bootstrap --timeout=5m
+      
+      - name: Check k8s status
+        if: failure()
+        run: |
+          sudo k8s status
+          sudo k8s inspect
+
+      - name: Archive charmcraft logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: charmcraft-logs
+          path: /home/runner/.local/state/charmcraft/log/*.log
+  
+      - name: Archive juju crashdump
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: juju-crashdump
+          path: juju-crashdump-*.tar.xz

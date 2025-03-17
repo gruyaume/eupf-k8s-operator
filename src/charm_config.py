@@ -63,11 +63,10 @@ class UpfConfig(BaseModel):
 
     cni_type: CNIType = CNIType.bridge
     xdp_attach_mode: XDPAttachMode = XDPAttachMode.generic
-    interfaces: str = "[n3,n6]"
     logging_level: str = "info"
     gnb_subnet: IPv4Network = IPv4Network("192.168.251.0/24")
-    n3_interface: Optional[StrictStr] = Field(default="")
-    n6_interface: Optional[StrictStr] = Field(default="")
+    n3_host_interface: Optional[StrictStr] = Field(default="")
+    n6_host_interface: Optional[StrictStr] = Field(default="")
     n3_ip: str = Field(default="192.168.252.3/24")
     n3_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
     n6_ip: str = Field(default="192.168.250.3/24")
@@ -82,11 +81,10 @@ class CharmConfig:
 
     cni_type: CNIType
     xdp_attach_mode: XDPAttachMode
-    interfaces: str
     logging_level: str
     gnb_subnet: IPv4Network
-    n3_interface: Optional[StrictStr]
-    n6_interface: Optional[StrictStr]
+    n3_host_interface: Optional[StrictStr]
+    n6_host_interface: Optional[StrictStr]
     n3_ip: str
     n3_gateway_ip: IPv4Address
     n6_ip: str
@@ -102,11 +100,10 @@ class CharmConfig:
         """
         self.cni_type = upf_config.cni_type
         self.xdp_attach_mode = upf_config.xdp_attach_mode
-        self.interfaces = upf_config.interfaces
         self.logging_level = upf_config.logging_level
         self.gnb_subnet = upf_config.gnb_subnet
-        self.n3_interface = upf_config.n3_interface
-        self.n6_interface = upf_config.n6_interface
+        self.n3_host_interface = upf_config.n3_host_interface
+        self.n6_host_interface = upf_config.n6_host_interface
         self.n3_ip = upf_config.n3_ip
         self.n3_gateway_ip = upf_config.n3_gateway_ip
         self.n6_ip = upf_config.n6_ip

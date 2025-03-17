@@ -311,7 +311,7 @@ class EupfK8SOperatorCharm(ops.CharmBase):
         """
         pfcp_address = get_pod_ip()
         content = render_upf_config_file(
-            interfaces=self._charm_config.interfaces,
+            interfaces=f"[{N3_INTERFACE_NAME},{N6_INTERFACE_NAME}]",
             logging_level=self._charm_config.logging_level,
             pfcp_address=pfcp_address,
             pfcp_port=PFCP_PORT,
@@ -490,9 +490,9 @@ class EupfK8SOperatorCharm(ops.CharmBase):
             Optional[str]: The interface on the host to use
         """
         if interface_name == N3_INTERFACE_NAME:
-            return self._charm_config.n3_interface
+            return self._charm_config.n3_host_interface
         elif interface_name == N6_INTERFACE_NAME:
-            return self._charm_config.n6_interface
+            return self._charm_config.n6_host_interface
         else:
             return None
 

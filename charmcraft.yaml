@@ -41,18 +41,12 @@ config:
       type: string
       default: bridge
       description: |
-        Multus CNI plugin to use for the interfaces.
-        Allowed values are `bridge`, `macvlan`.
+        Multus CNI plugin to use for the interfaces. Allowed values are `bridge`, `macvlan`.
     xdp_attach_mode:
       type: string
       default: "generic"
       description: |
-        XDP attach mode.
-        Allowed values are `generic`, `native`.
-    interfaces:
-      type: string
-      default: "[n3,n6]"
-      description: List of network interfaces handling N3 (GTP) & N6 (SGi) traffic. eUPF attaches XDP hook to every interface in this list.
+        XDP attach mode. Allowed values are `generic`, `native`. The charm was only tested with  `generic` mode.
     logging-level:
       type: string
       default: debug
@@ -64,13 +58,11 @@ config:
     n3-host-interface:
       type: string
       description: |
-        Interface on the host to use for the Access Network (n3).
-        If set, the eUPF charm will create a Network Attachment Definition (NAD) of type macvlan.
+        Interface on the host to use for the Access Network (n3). This value will only be used when the `cni-type` configuration option is set to `macvlan`.
     n6-host-interface:
       type: string
       description: |
-        Interface on the host to use for the Core Network (n6).
-        If set, the eUPF charm will create a Network Attachment Definition (NAD) of type macvlan.
+        Interface on the host to use for the Core Network (n6). This value will only be used when the `cni-type` configuration option is set to `macvlan`.
     n6-ip:
       type: string
       default: 192.168.250.3/24
@@ -90,8 +82,7 @@ config:
     pfcp-node-id:
       type: string
       description: |
-        PFCP node ID.
-        If not provided, it will default to the PFCP address.
+        PFCP node ID. If not provided, the charm will default to the PFCP address.
     external-hostname:
       type: string
       description: |

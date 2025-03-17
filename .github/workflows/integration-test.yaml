@@ -18,7 +18,7 @@ jobs:
         with:
           ref: ${{ inputs.branch-name }}
 
-      - name: Install Canonical K8s and Multus
+      - name: Install Canonical K8s
         run: |
           sudo rm -rf /run/containerd
           sudo snap install k8s --classic --channel=1.32-classic/stable
@@ -27,7 +27,6 @@ jobs:
       - name: Check k8s status
         if: failure()
         run: |
-          sudo k8s status
           sudo k8s inspect
 
       - name: Archive charmcraft logs

@@ -2,9 +2,6 @@ name: Integration tests
 
 on:
   workflow_call:
-    secrets:
-      GHCR_TOKEN:
-        required: true
     inputs:
       branch-name:
         description: Name of the branch to checkout

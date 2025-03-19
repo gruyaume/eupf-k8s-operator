@@ -3,13 +3,14 @@ type: charm
 title: eUPF K8s
 summary: eUPF K8s
 description: eUPF K8s
-bases:
-  - build-on:
-    - name: ubuntu
-      channel: "22.04"
-    run-on:
-    - name: ubuntu
-      channel: "22.04"
+base: ubuntu@24.04
+build-base: ubuntu@24.04
+platforms:
+  amd64:
+
+assumes:
+  - juju >= 3.4
+  - k8s-api
 
 parts:
   charm:
@@ -41,7 +42,7 @@ config:
       type: string
       default: bridge
       description: |
-        Multus CNI plugin to use for the interfaces. Allowed values are `bridge`, `macvlan`.
+        Multus CNI plugin to use for the interfaces. Allowed values are `bridge`, `macvlan`, and `host-device`.
     xdp_attach_mode:
       type: string
       default: "generic"
@@ -58,11 +59,11 @@ config:
     n3-host-interface:
       type: string
       description: |
-        Interface on the host to use for the Access Network (n3). This value will only be used when the `cni-type` configuration option is set to `macvlan`.
+        Interface on the host to use for the Access Network (n3). This value will only be used when the `cni-type` configuration option is set to `macvlan` or `host-device`.
     n6-host-interface:
       type: string
       description: |
-        Interface on the host to use for the Core Network (n6). This value will only be used when the `cni-type` configuration option is set to `macvlan`.
+        Interface on the host to use for the Core Network (n6). This value will only be used when the `cni-type` configuration option is set to `macvlan` or `host-device`.
     n6-ip:
       type: string
       default: 192.168.250.3/24

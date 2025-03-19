@@ -22,10 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 class CNIType(str, Enum):
-    """Class to define available CNI types for UPF operator."""
+    """Class to define available CNI types for eUPF operator."""
 
     bridge = "bridge"
     macvlan = "macvlan"
+    host_device = "host-device"
 
 
 class XDPAttachMode(str, Enum):

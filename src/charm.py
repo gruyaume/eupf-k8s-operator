@@ -436,10 +436,12 @@ class EupfK8SOperatorCharm(ops.CharmBase):
 
         cni_type = self._charm_config.cni_type
 
-        # host interface name is used only by macvlan and host-device
-        if host_interface := self._get_interface_config(interface_name):
-            if cni_type == CNIType.macvlan:
-                nad_config.update({"master": host_interface})
+        if cni_type == CNIType.macvlan or cni_type == CNIType.host_device:
+            if host_interface := self._get_interface_config(interface_name):
+                if cni_type == CNIType.macvlan:
+                    nad_config.update({"master": host_interface})
+                elif cni_type == CNIType.host_device:
+                    nad_config.update({"device": host_interface})
         else:
             nad_config.update(
                 {

@@ -1,0 +1,37 @@
+name: Integration tests
+
+on:
+  workflow_call:
+    inputs:
+      branch-name:
+        description: Name of the branch to checkout
+        required: false
+        type: string
+        default: ${{ github.ref }}
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch-name }}
+
+      - name: Install Canonical K8s
+        run: |
+          sudo rm -rf /run/containerd
+          sudo snap install k8s --classic --channel=1.32-classic/stable
+          sudo k8s bootstrap --timeout=5m
+      
+      - name: Check k8s status
+        if: failure()
+        run: |
+          sudo k8s inspect
+      
+      - name: Archive K8s inspection report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k8s-inspection
+          path: /home/runner/work/eupf-k8s-operator/eupf-k8s-operator/*.gz

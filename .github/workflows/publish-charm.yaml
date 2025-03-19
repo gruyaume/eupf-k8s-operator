@@ -8,7 +8,7 @@ on:
 
 jobs:
   publish-charm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
           built-charm-path: ${{ steps.charm-path.outputs.charm_path }}
           credentials: "${{ secrets.CHARMCRAFT_AUTH }}"
           github-token: "${{ secrets.GITHUB_TOKEN }}"
-          channel: edge
+          channel: 0.0/edge
   
       - name: Archive charmcraft logs
         if: failure()

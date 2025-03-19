@@ -28,17 +28,10 @@ jobs:
         if: failure()
         run: |
           sudo k8s inspect
-
-      - name: Archive charmcraft logs
+      
+      - name: Archive K8s inspection report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: charmcraft-logs
-          path: /home/runner/.local/state/charmcraft/log/*.log
-  
-      - name: Archive juju crashdump
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: juju-crashdump
-          path: juju-crashdump-*.tar.xz
+          name: k8s-inspection
+          path: /home/runner/work/eupf-k8s-operator/eupf-k8s-operator/*.gz

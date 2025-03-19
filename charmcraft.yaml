@@ -43,7 +43,7 @@ config:
       default: bridge
       description: |
         Multus CNI plugin to use for the interfaces. Allowed values are `bridge`, `macvlan`, and `host-device`.
-    xdp_attach_mode:
+    xdp-attach-mode:
       type: string
       default: "generic"
       description: |

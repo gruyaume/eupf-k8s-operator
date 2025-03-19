@@ -59,11 +59,11 @@ config:
     n3-host-interface:
       type: string
       description: |
-        Interface on the host to use for the Access Network (n3). This value will only be used when the `cni-type` configuration option is set to `macvlan`.
+        Interface on the host to use for the Access Network (n3). This value will only be used when the `cni-type` configuration option is set to `macvlan` or `host-device`.
     n6-host-interface:
       type: string
       description: |
-        Interface on the host to use for the Core Network (n6). This value will only be used when the `cni-type` configuration option is set to `macvlan`.
+        Interface on the host to use for the Core Network (n6). This value will only be used when the `cni-type` configuration option is set to `macvlan` or `host-device`.
     n6-ip:
       type: string
       default: 192.168.250.3/24
